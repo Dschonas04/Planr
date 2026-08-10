@@ -1,16 +1,16 @@
 // Interaktion auf dem Grundriss-Canvas. Haelt den fluechtigen Drag-Zustand
 // lokal und schreibt nur abgeschlossene Aenderungen in den Store.
 
-import { angleOf, dist, rotate, snapAngle, sub } from '../model/geometry.js';
-import { screenToWorld, snap } from '../model/units.js';
+import { angleOf, dist, rotate, snapAngle, sub } from '../model/geometry.ts';
+import { screenToWorld, snap } from '../model/units.ts';
 import {
   DEFAULTS,
   nearestWall,
   newId,
   offsetAlongWall,
   wallLength,
-} from '../model/project.js';
-import { catalogItem } from '../model/catalog.js';
+} from '../model/project.ts';
+import { catalogItem } from '../model/catalog.ts';
 import { hitTest, snapPoint } from './hitTest.js';
 import { activeLevel, commit, getState, setState, toast } from '../store.js';
 

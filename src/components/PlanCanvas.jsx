@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { drawScene } from '../canvas2d/render.js';
 import { createInteraction } from '../canvas2d/events.js';
-import { findRooms } from '../model/geometry.js';
+import { findRooms } from '../model/geometry.ts';
 import { activeLevel, useStore } from '../store.js';
 
 const CURSORS = {

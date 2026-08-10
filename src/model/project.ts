@@ -1,8 +1,9 @@
 // Projektmodell, Serialisierung und die Helfer, die Waende und Oeffnungen
 // zusammenbringen. Einheit ueberall: Zentimeter, Winkel im Bogenmass.
 
-import { add, angleOf, dist, len, normalize, scale, sub } from './geometry.js';
-import { catalogItem } from './catalog.js';
+import { add, angleOf, dist, len, normalize, scale, sub } from './geometry.ts';
+import { catalogItem } from './catalog.ts';
+import type { Cm, Level, Opening, Point, Project, Rad, Wall, WallSolid } from './types.ts';
 
 export const FILE_VERSION = 1;
 
@@ -18,12 +19,12 @@ export const DEFAULTS = {
 };
 
 let idCounter = 0;
-export function newId(prefix = 'o') {
+export function newId(prefix = 'o'): string {
   idCounter += 1;
   return `${prefix}_${Date.now().toString(36)}_${idCounter.toString(36)}`;
 }
 
-export function createLevel(name = 'Erdgeschoss') {
+export function createLevel(name = 'Erdgeschoss'): Level {
   return {
     id: newId('lvl'),
     name,
@@ -35,7 +36,7 @@ export function createLevel(name = 'Erdgeschoss') {
   };
 }
 
-export function createProject(name = 'Neues Projekt') {
+export function createProject(name = 'Neues Projekt'): Project {
   return {
     version: FILE_VERSION,
     name,
@@ -45,13 +46,13 @@ export function createProject(name = 'Neues Projekt') {
 }
 
 /** Kleine Beispielwohnung, damit der Editor nicht leer startet. */
-export function demoProject() {
+export function demoProject(): Project {
   const project = createProject('Beispielwohnung');
   const level = project.levels[0];
   const t = DEFAULTS.wallThicknessCm;
   const ti = DEFAULTS.innerWallThicknessCm;
 
-  const wall = (ax, ay, bx, by, thickness = t) => {
+  const wall = (ax: Cm, ay: Cm, bx: Cm, by: Cm, thickness: Cm = t): Wall => {
     const w = {
       id: newId('w'),
       a: { x: ax, y: ay },
@@ -92,6 +93,7 @@ export function demoProject() {
       heightCm: DEFAULTS.windowHeightCm,
       sillCm: DEFAULTS.windowSillCm,
       type: 'window',
+      swing: 1,
     },
     {
       id: newId('op'),
@@ -101,6 +103,7 @@ export function demoProject() {
       heightCm: DEFAULTS.windowHeightCm,
       sillCm: DEFAULTS.windowSillCm,
       type: 'window',
+      swing: 1,
     },
     {
       id: newId('op'),
@@ -110,6 +113,7 @@ export function demoProject() {
       heightCm: DEFAULTS.windowHeightCm,
       sillCm: DEFAULTS.windowSillCm,
       type: 'window',
+      swing: 1,
     },
     {
       id: newId('op'),
@@ -133,7 +137,7 @@ export function demoProject() {
     },
   );
 
-  const place = (catalogId, x, y, rotationDeg = 0) => {
+  const place = (catalogId: string, x: Cm, y: Cm, rotationDeg = 0): void => {
     const item = catalogItem(catalogId);
     if (!item) return;
     level.furniture.push({
@@ -167,26 +171,26 @@ export function demoProject() {
 
 // --- Wand-Helfer -------------------------------------------------------
 
-export function wallVector(wall) {
+export function wallVector(wall: Wall): Point {
   return sub(wall.b, wall.a);
 }
 
-export function wallLength(wall) {
+export function wallLength(wall: Wall): Cm {
   return len(wallVector(wall));
 }
 
-export function wallAngle(wall) {
+export function wallAngle(wall: Wall): Rad {
   return angleOf(wallVector(wall));
 }
 
 /** Weltposition eines Offsets entlang der Wandmittellinie. */
-export function pointAlongWall(wall, offsetCm) {
+export function pointAlongWall(wall: Wall, offsetCm: Cm): Point {
   const dir = normalize(wallVector(wall));
   return add(wall.a, scale(dir, offsetCm));
 }
 
 /** Offset eines Weltpunkts entlang der Wand, begrenzt auf die Wandlaenge. */
-export function offsetAlongWall(wall, point) {
+export function offsetAlongWall(wall: Wall, point: Point): Cm {
   const v = wallVector(wall);
   const l = len(v);
   if (l < 1e-6) return 0;
@@ -195,7 +199,7 @@ export function offsetAlongWall(wall, point) {
   return Math.max(0, Math.min(l, t));
 }
 
-export function openingsOfWall(level, wallId) {
+export function openingsOfWall(level: Level, wallId: string): Opening[] {
   return level.openings.filter((o) => o.wallId === wallId);
 }
 
@@ -204,7 +208,7 @@ export function openingsOfWall(level, wallId) {
  * Rueckgabe je Stueck: Start-/End-Offset sowie Unter- und Oberkante --
  * daraus baut die 3D-Ansicht Bruestung und Sturz.
  */
-export function wallSolids(wall, openings) {
+export function wallSolids(wall: Wall, openings: Opening[]): WallSolid[] {
   const total = wallLength(wall);
   const height = wall.heightCm || DEFAULTS.wallHeightCm;
   const sorted = [...openings]
@@ -217,7 +221,7 @@ export function wallSolids(wall, openings) {
     .filter((o) => o.end > o.start)
     .sort((a, b) => a.start - b.start);
 
-  const solids = [];
+  const solids: WallSolid[] = [];
   let cursor = 0;
   for (const o of sorted) {
     if (o.start > cursor) {
@@ -238,8 +242,12 @@ export function wallSolids(wall, openings) {
 }
 
 /** Wand, deren Mittellinie dem Punkt am naechsten liegt (innerhalb maxDist). */
-export function nearestWall(level, point, maxDist = 40) {
-  let best = null;
+export function nearestWall(
+  level: Level,
+  point: Point,
+  maxDist = 40,
+): { wall: Wall; offsetCm: Cm; dist: number; point: Point } | null {
+  let best: { wall: Wall; offsetCm: Cm; dist: number; point: Point } | null = null;
   let bestDist = maxDist;
   for (const wall of level.walls) {
     const off = offsetAlongWall(wall, point);
@@ -255,19 +263,19 @@ export function nearestWall(level, point, maxDist = 40) {
 
 // --- Serialisierung ----------------------------------------------------
 
-export function serialize(project) {
+export function serialize(project: Project): string {
   return JSON.stringify({ ...project, version: FILE_VERSION }, null, 2);
 }
 
-const num = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
-const pt = (p) => ({ x: num(p?.x, 0), y: num(p?.y, 0) });
+const num = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+const pt = (p: any): Point => ({ x: num(p?.x, 0), y: num(p?.y, 0) });
 
 /**
  * Liest ein Projekt aus JSON. Fremde oder beschaedigte Felder werden auf
  * Standardwerte gezogen, statt die App mit einem kaputten State zu starten.
  */
-export function deserialize(json) {
-  const raw = typeof json === 'string' ? JSON.parse(json) : json;
+export function deserialize(json: string | unknown): Project {
+  const raw: any = typeof json === 'string' ? JSON.parse(json) : json;
   if (!raw || typeof raw !== 'object') throw new Error('Datei enthält kein Projekt.');
   const levels = Array.isArray(raw.levels) && raw.levels.length ? raw.levels : [createLevel()];
 
@@ -275,8 +283,8 @@ export function deserialize(json) {
     version: FILE_VERSION,
     name: typeof raw.name === 'string' ? raw.name : 'Importiertes Projekt',
     gridCm: num(raw.gridCm, 10),
-    levels: levels.map((lvl) => {
-      const walls = (Array.isArray(lvl.walls) ? lvl.walls : []).map((w) => ({
+    levels: levels.map((lvl: any): Level => {
+      const walls: Wall[] = (Array.isArray(lvl.walls) ? lvl.walls : []).map((w: any) => ({
         id: w.id || newId('w'),
         a: pt(w.a),
         b: pt(w.b),
@@ -291,8 +299,8 @@ export function deserialize(json) {
         walls,
         // Oeffnungen ohne zugehoerige Wand wuerden beim Rendern ins Leere zeigen.
         openings: (Array.isArray(lvl.openings) ? lvl.openings : [])
-          .filter((o) => wallIds.has(o.wallId))
-          .map((o) => ({
+          .filter((o: any) => wallIds.has(o.wallId))
+          .map((o: any) => ({
             id: o.id || newId('op'),
             wallId: o.wallId,
             offsetCm: num(o.offsetCm, 0),
@@ -302,7 +310,7 @@ export function deserialize(json) {
             type: o.type === 'window' ? 'window' : 'door',
             swing: o.swing === -1 ? -1 : 1,
           })),
-        furniture: (Array.isArray(lvl.furniture) ? lvl.furniture : []).map((f) => {
+        furniture: (Array.isArray(lvl.furniture) ? lvl.furniture : []).map((f: any) => {
           const cat = catalogItem(f.catalogId);
           return {
             id: f.id || newId('f'),
@@ -318,7 +326,7 @@ export function deserialize(json) {
           };
         }),
         labels: Array.isArray(lvl.labels)
-          ? lvl.labels.map((l) => ({
+          ? lvl.labels.map((l: any) => ({
               id: l.id || newId('lb'),
               x: num(l.x, 0),
               y: num(l.y, 0),

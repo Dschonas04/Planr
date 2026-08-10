@@ -6,8 +6,8 @@
 // massive Stuecke zerlegt -- Bruestung unter dem Fenster, Sturz darueber.
 
 import * as THREE from 'three';
-import { findRooms, normalize, sub } from '../model/geometry.js';
-import { openingsOfWall, wallSolids, wallLength, wallAngle } from '../model/project.js';
+import { findRooms, normalize, sub } from '../model/geometry.ts';
+import { openingsOfWall, wallSolids, wallLength, wallAngle } from '../model/project.ts';
 
 const M = 0.01; // cm -> m
 

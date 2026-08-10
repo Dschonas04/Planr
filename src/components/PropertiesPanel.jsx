@@ -1,7 +1,7 @@
 import { activeLevel, commit, setState, useStore } from '../store.js';
-import { formatArea, formatLength } from '../model/units.js';
-import { wallLength } from '../model/project.js';
-import { findRooms } from '../model/geometry.js';
+import { formatArea, formatLength } from '../model/units.ts';
+import { wallLength } from '../model/project.ts';
+import { findRooms } from '../model/geometry.ts';
 import { useMemo } from 'react';
 
 function NumberField({ label, value, onChange, min = 1, max = 2000, step = 1, unit = 'cm' }) {

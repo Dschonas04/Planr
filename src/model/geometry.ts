@@ -1,39 +1,41 @@
 // Reine Geometrie -- keine React-, Canvas- oder Store-Abhaengigkeiten,
 // damit das hier ohne Browser testbar bleibt.
 
+import type { Cm, Point, Rad, Room, Segment } from './types.ts';
+
 export const EPS = 1e-6;
 
-export const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
-export const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
-export const scale = (a, s) => ({ x: a.x * s, y: a.y * s });
-export const dot = (a, b) => a.x * b.x + a.y * b.y;
-export const cross = (a, b) => a.x * b.y - a.y * b.x;
-export const len = (a) => Math.hypot(a.x, a.y);
-export const dist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+export const sub = (a: Point, b: Point): Point => ({ x: a.x - b.x, y: a.y - b.y });
+export const add = (a: Point, b: Point): Point => ({ x: a.x + b.x, y: a.y + b.y });
+export const scale = (a: Point, s: number): Point => ({ x: a.x * s, y: a.y * s });
+export const dot = (a: Point, b: Point): number => a.x * b.x + a.y * b.y;
+export const cross = (a: Point, b: Point): number => a.x * b.y - a.y * b.x;
+export const len = (a: Point): number => Math.hypot(a.x, a.y);
+export const dist = (a: Point, b: Point): number => Math.hypot(b.x - a.x, b.y - a.y);
 
-export function normalize(a) {
+export function normalize(a: Point): Point {
   const l = len(a);
   return l < EPS ? { x: 0, y: 0 } : { x: a.x / l, y: a.y / l };
 }
 
 /** Normale (90 Grad links) eines Vektors. */
-export function normal(a) {
+export function normal(a: Point): Point {
   return { x: -a.y, y: a.x };
 }
 
-export function rotate(p, rad, origin = { x: 0, y: 0 }) {
+export function rotate(p: Point, rad: Rad, origin: Point = { x: 0, y: 0 }): Point {
   const c = Math.cos(rad);
   const s = Math.sin(rad);
   const d = sub(p, origin);
   return { x: origin.x + d.x * c - d.y * s, y: origin.y + d.x * s + d.y * c };
 }
 
-export function angleOf(v) {
+export function angleOf(v: Point): Rad {
   return Math.atan2(v.y, v.x);
 }
 
 /** Winkel auf ein Vielfaches von stepRad einrasten. */
-export function snapAngle(a, b, stepRad) {
+export function snapAngle(a: Point, b: Point, stepRad: Rad): Point {
   const v = sub(b, a);
   const l = len(v);
   if (l < EPS) return b;
@@ -42,7 +44,7 @@ export function snapAngle(a, b, stepRad) {
 }
 
 /** Punkt auf einer Strecke, der p am naechsten liegt -- plus Parameter t in [0,1]. */
-export function closestPointOnSegment(p, a, b) {
+export function closestPointOnSegment(p: Point, a: Point, b: Point): { point: Point; t: number; dist: number } {
   const ab = sub(b, a);
   const l2 = dot(ab, ab);
   if (l2 < EPS) return { point: { ...a }, t: 0, dist: dist(p, a) };
@@ -52,12 +54,12 @@ export function closestPointOnSegment(p, a, b) {
   return { point, t, dist: dist(p, point) };
 }
 
-export function pointSegmentDistance(p, a, b) {
+export function pointSegmentDistance(p: Point, a: Point, b: Point): number {
   return closestPointOnSegment(p, a, b).dist;
 }
 
 /** Schnittpunkt zweier Strecken oder null. */
-export function segmentIntersection(a1, a2, b1, b2) {
+export function segmentIntersection(a1: Point, a2: Point, b1: Point, b2: Point): Point | null {
   const r = sub(a2, a1);
   const s = sub(b2, b1);
   const denom = cross(r, s);
@@ -69,7 +71,7 @@ export function segmentIntersection(a1, a2, b1, b2) {
 }
 
 /** Flaeche eines Polygons (positiv bei mathematisch positivem Umlaufsinn). */
-export function polygonArea(points) {
+export function polygonArea(points: Point[]): number {
   let a = 0;
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
@@ -79,7 +81,7 @@ export function polygonArea(points) {
   return a / 2;
 }
 
-export function polygonCentroid(points) {
+export function polygonCentroid(points: Point[]): Point {
   const a = polygonArea(points);
   if (Math.abs(a) < EPS) {
     // Entartetes Polygon: einfacher Mittelwert statt Division durch ~0.
@@ -98,7 +100,7 @@ export function polygonCentroid(points) {
   return { x: cx / (6 * a), y: cy / (6 * a) };
 }
 
-export function pointInPolygon(p, points) {
+export function pointInPolygon(p: Point, points: Point[]): boolean {
   let inside = false;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
     const pi = points[i];
@@ -112,7 +114,7 @@ export function pointInPolygon(p, points) {
 }
 
 /** Achsparallele Huelle einer Punktmenge. */
-export function bboxOf(points) {
+export function bboxOf(points: Point[]): { minX: number; minY: number; maxX: number; maxY: number } {
   if (!points.length) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   let minX = Infinity;
   let minY = Infinity;
@@ -128,7 +130,7 @@ export function bboxOf(points) {
 }
 
 /** Die vier Eckpunkte eines gedrehten Rechtecks (Mittelpunkt, Breite, Tiefe, Winkel). */
-export function rectCorners(cx, cy, w, d, rad) {
+export function rectCorners(cx: Cm, cy: Cm, w: Cm, d: Cm, rad: Rad): Point[] {
   const hw = w / 2;
   const hd = d / 2;
   const c = { x: cx, y: cy };
@@ -141,7 +143,7 @@ export function rectCorners(cx, cy, w, d, rad) {
 }
 
 /** Liegt p im gedrehten Rechteck? Rechnet in dessen lokalem System. */
-export function pointInRect(p, cx, cy, w, d, rad) {
+export function pointInRect(p: Point, cx: Cm, cy: Cm, w: Cm, d: Cm, rad: Rad): boolean {
   const local = rotate(p, -rad, { x: cx, y: cy });
   return (
     local.x >= cx - w / 2 &&
@@ -160,20 +162,20 @@ export function pointInRect(p, cx, cy, w, d, rad) {
  * Beruecksichtigt werden Endpunkte anderer Strecken auf der Strecke sowie
  * echte Kreuzungen.
  */
-export function nodeSegments(segments, tol = 1) {
+export function nodeSegments(segments: Segment[], tol = 1): Segment[] {
   const endpoints = [];
   for (const s of segments) {
     endpoints.push(s.a, s.b);
   }
 
-  const result = [];
+  const result: Segment[] = [];
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const l = dist(seg.a, seg.b);
     if (l < tol) continue;
 
-    const cuts = [];
-    const addCut = (p) => {
+    const cuts: number[] = [];
+    const addCut = (p: Point) => {
       const { t, dist: d } = closestPointOnSegment(p, seg.a, seg.b);
       const along = t * l;
       // Nur echte Zwischenpunkte -- die eigenen Enden teilen nichts.
@@ -215,10 +217,10 @@ export function nodeSegments(segments, tol = 1) {
  * @param {number} tol Knoten naeher als tol (cm) gelten als derselbe Punkt
  * @returns {Array<{points: Array<{x,y}>, area: number}>} Raumpolygone, cm bzw. cm2
  */
-export function findRooms(segments, tol = 1) {
+export function findRooms(segments: Segment[], tol = 1): Room[] {
   const noded = nodeSegments(segments, tol);
-  const nodes = [];
-  const keyOf = (p) => {
+  const nodes: Point[] = [];
+  const keyOf = (p: Point) => {
     for (let i = 0; i < nodes.length; i++) {
       if (dist(nodes[i], p) <= tol) return i;
     }
@@ -226,8 +228,8 @@ export function findRooms(segments, tol = 1) {
     return nodes.length - 1;
   };
 
-  const halfEdges = [];
-  const outgoing = new Map(); // Knoten -> Indizes der ausgehenden Half-Edges
+  const halfEdges: { from: number; to: number; angle: Rad; visited: boolean }[] = [];
+  const outgoing = new Map<number, number[]>(); // Knoten -> Indizes der ausgehenden Half-Edges
 
   for (const seg of noded) {
     const from = keyOf(seg.a);
@@ -245,7 +247,7 @@ export function findRooms(segments, tol = 1) {
         visited: false,
       });
       if (!outgoing.has(s)) outgoing.set(s, []);
-      outgoing.get(s).push(idx);
+      outgoing.get(s)!.push(idx);
     }
   }
 
@@ -255,9 +257,9 @@ export function findRooms(segments, tol = 1) {
     list.sort((i, j) => halfEdges[i].angle - halfEdges[j].angle);
   }
 
-  const twinOf = (idx) => (idx % 2 === 0 ? idx + 1 : idx - 1);
+  const twinOf = (idx: number) => (idx % 2 === 0 ? idx + 1 : idx - 1);
 
-  const nextEdge = (idx) => {
+  const nextEdge = (idx: number) => {
     const he = halfEdges[idx];
     const list = outgoing.get(he.to) || [];
     if (!list.length) return -1;
@@ -277,10 +279,10 @@ export function findRooms(segments, tol = 1) {
     return best === -1 ? twinOf(idx) : best;
   };
 
-  const rooms = [];
+  const rooms: Room[] = [];
   for (let start = 0; start < halfEdges.length; start++) {
     if (halfEdges[start].visited) continue;
-    const cycle = [];
+    const cycle: number[] = [];
     let cur = start;
     let guard = 0;
     while (!halfEdges[cur].visited && guard++ < halfEdges.length + 2) {

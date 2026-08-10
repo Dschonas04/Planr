@@ -10,7 +10,7 @@ import { IconLogo } from './components/icons.jsx';
 // wenn jemand die 3D-Ansicht oeffnet.
 const View3D = lazy(() => import('./components/View3D.jsx'));
 import { exportJSON, exportPNG, exportSVG } from './export.js';
-import { deserialize } from './model/project.js';
+import { deserialize } from './model/project.ts';
 import {
   activeLevel,
   commit,

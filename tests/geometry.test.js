@@ -7,15 +7,15 @@ import {
   polygonArea,
   rectCorners,
   snapAngle,
-} from '../src/model/geometry.js';
-import { formatArea, formatLength, snap } from '../src/model/units.js';
+} from '../src/model/geometry.ts';
+import { formatArea, formatLength, snap } from '../src/model/units.ts';
 import {
   deserialize,
   offsetAlongWall,
   serialize,
   wallSolids,
   demoProject,
-} from '../src/model/project.js';
+} from '../src/model/project.ts';
 
 test('polygonArea liefert die Flaeche eines Rechtecks', () => {
   const area = polygonArea([

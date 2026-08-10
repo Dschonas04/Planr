@@ -75,6 +75,7 @@ ausliefert — ohne Anmeldung und ohne Datenbank.
 npm install
 npm run dev              # Editor auf http://localhost:5173
 npm test                 # Geometrie- und Modelltests
+npm run typecheck        # TypeScript prüfen
 
 cd server && go run .    # Server auf http://localhost:8090
 cd server && go test ./... && go vet ./...
@@ -135,6 +136,8 @@ liegen im Volume `planr-data`.
 
 ### Tech-Stack
 - **Frontend** — React 19, Vite 6, HTML5 Canvas 2D
+- **Modellschicht** — TypeScript mit eigenen Einheitentypen für cm, px, Grad
+  und Bogenmaß
 - **3D** — three.js mit OrbitControls, per Code-Splitting nachgeladen
 - **State** — eigener Store über `useSyncExternalStore`
 - **Server** — Go 1.25, Standardbibliothek plus `golang.org/x/image`
@@ -147,11 +150,12 @@ liegen im Volume `planr-data`.
 ```
 Planr/
 ├── src/
-│   ├── model/            # Fachlogik, ohne Browser-Abhängigkeiten
-│   │   ├── units.js      # cm <-> px, Formatierung, Raster
-│   │   ├── geometry.js   # Vektoren, Noding, Raumerkennung
-│   │   ├── catalog.js    # Möbelkatalog mit realen Maßen
-│   │   └── project.js    # Datenmodell, Wandzerlegung, Serialisierung
+│   ├── model/            # Fachlogik in TypeScript, ohne Browser-Abhängigkeiten
+│   │   ├── types.ts      # Typen samt Einheiten (Cm, Px, Rad, Deg)
+│   │   ├── units.ts      # cm <-> px, Formatierung, Raster
+│   │   ├── geometry.ts   # Vektoren, Noding, Raumerkennung
+│   │   ├── catalog.ts    # Möbelkatalog mit realen Maßen
+│   │   └── project.ts    # Datenmodell, Wandzerlegung, Serialisierung
 │   ├── canvas2d/
 │   │   ├── render.js     # sämtliche Draw-Calls
 │   │   ├── hitTest.js    # Trefferprüfung und Fangpunkte
@@ -180,6 +184,12 @@ Planr/
 **Einheiten.** Das Modell rechnet ausschließlich in Zentimetern. Die Umrechnung
 in Pixel passiert an einer einzigen Stelle, nämlich im `setTransform()` des
 Renderers. Dadurch kann kein Maßstabsfehler in die Fachlogik einsickern.
+
+**Einheiten im Typsystem.** Planr rechnet gleichzeitig mit Zentimetern,
+Pixeln, Grad und Bogenmaß — in JavaScript sind das alles `number` und damit
+verwechselbar. Die Modellschicht ist deshalb TypeScript, mit unterscheidbaren
+Typen `Cm`, `Px`, `Rad` und `Deg`. Zur Laufzeit bleiben es gewöhnliche Zahlen
+ohne jeden Aufwand.
 
 **Kein eigenes Dateiformat.** `.planr` ist JSON — eine eigene Syntax hätte
 nichts gebracht, was JSON nicht kann, aber jedes vorhandene Werkzeug
