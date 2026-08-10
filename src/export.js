@@ -2,15 +2,15 @@
 // SVG als eigener Vektor-Pfad (fuer Druck und Weiterverarbeitung in CAD).
 
 import { COLORS, drawScene, wallQuad } from './canvas2d/render.js';
-import { findRooms, polygonCentroid, rectCorners } from './model/geometry.js';
-import { formatArea, formatLength } from './model/units.js';
+import { findRooms, polygonCentroid, rectCorners } from './model/geometry.ts';
+import { formatArea, formatLength } from './model/units.ts';
 import {
   openingsOfWall,
   pointAlongWall,
   serialize,
   wallAngle,
   wallLength,
-} from './model/project.js';
+} from './model/project.ts';
 
 const PADDING_CM = 120;
 

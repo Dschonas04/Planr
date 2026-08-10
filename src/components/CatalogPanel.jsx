@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { CATALOG, CATEGORIES } from '../model/catalog.js';
+import { CATALOG, CATEGORIES } from '../model/catalog.ts';
 import { setState, useStore } from '../store.js';
-import { formatLength } from '../model/units.js';
+import { formatLength } from '../model/units.ts';
 
 export default function CatalogPanel() {
   const state = useStore();

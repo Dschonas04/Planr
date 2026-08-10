@@ -1,8 +1,8 @@
 // Trefferpruefung und Snapping -- reine Funktionen ueber Modell + Ansicht.
 
-import { dist, pointInRect, rectCorners, rotate } from '../model/geometry.js';
-import { snap } from '../model/units.js';
-import { openingsOfWall, pointAlongWall, wallAngle } from '../model/project.js';
+import { dist, pointInRect, rectCorners, rotate } from '../model/geometry.ts';
+import { snap } from '../model/units.ts';
+import { openingsOfWall, pointAlongWall, wallAngle } from '../model/project.ts';
 
 /** Pixelabstand in Weltmass umrechnen -- Griffe sollen bei jedem Zoom gleich gross wirken. */
 const tol = (px, view) => px / view.zoom;

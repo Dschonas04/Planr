@@ -10,15 +10,15 @@ import {
   rectCorners,
   scale,
   sub,
-} from '../model/geometry.js';
-import { formatArea, formatLength } from '../model/units.js';
+} from '../model/geometry.ts';
+import { formatArea, formatLength } from '../model/units.ts';
 import {
   openingsOfWall,
   pointAlongWall,
   wallAngle,
   wallLength,
   wallVector,
-} from '../model/project.js';
+} from '../model/project.ts';
 
 export const COLORS = {
   bg: '#f5f3ee',

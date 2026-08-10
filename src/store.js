@@ -3,7 +3,7 @@
 // sind fluechtig und landen bewusst nicht in der History.
 
 import { useSyncExternalStore } from 'react';
-import { createProject, demoProject, deserialize, serialize } from './model/project.js';
+import { createProject, demoProject, deserialize, serialize } from './model/project.ts';
 
 const STORAGE_KEY = 'planr.project.v1';
 const HISTORY_LIMIT = 60;

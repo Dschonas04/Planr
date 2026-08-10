@@ -2,7 +2,14 @@
 // orientiert -- w = Breite, d = Tiefe, h = Hoehe.
 // "shape" steuert nur die Darstellung: rect, round oder bed.
 
-export const CATEGORIES = [
+import type { CatalogItem } from './types.ts';
+
+export interface Category {
+  id: string;
+  label: string;
+}
+
+export const CATEGORIES: Category[] = [
   { id: 'schlafen', label: 'Schlafen' },
   { id: 'wohnen', label: 'Wohnen' },
   { id: 'essen', label: 'Essen' },
@@ -13,7 +20,7 @@ export const CATEGORIES = [
   { id: 'sonstiges', label: 'Sonstiges' },
 ];
 
-export const CATALOG = [
+export const CATALOG: CatalogItem[] = [
   // --- Schlafen ---
   { id: 'bed-90', cat: 'schlafen', label: 'Einzelbett 90×200', w: 90, d: 200, h: 50, shape: 'bed', color: '#8fa6c4' },
   { id: 'bed-140', cat: 'schlafen', label: 'Bett 140×200', w: 140, d: 200, h: 50, shape: 'bed', color: '#8fa6c4' },
@@ -73,12 +80,12 @@ export const CATALOG = [
   { id: 'box', cat: 'sonstiges', label: 'Freies Rechteck', w: 100, d: 100, h: 100, shape: 'rect', color: '#a0a0a0' },
 ];
 
-const byId = new Map(CATALOG.map((c) => [c.id, c]));
+const byId = new Map<string, CatalogItem>(CATALOG.map((c) => [c.id, c]));
 
-export function catalogItem(id) {
+export function catalogItem(id: string): CatalogItem | null {
   return byId.get(id) || null;
 }
 
-export function catalogByCategory(catId) {
+export function catalogByCategory(catId: string): CatalogItem[] {
   return CATALOG.filter((c) => c.cat === catId);
 }
