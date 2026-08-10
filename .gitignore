@@ -4,3 +4,7 @@ dist/
 *.log
 .env
 .vite/
+
+# Go
+server/planr
+data/

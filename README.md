@@ -4,9 +4,9 @@ Planr ist eine browserbasierte Anwendung, mit der sich eine Wohnung oder ein
 Haus maßstabsgetreu zeichnen und möblieren lässt. Gerechnet wird durchgängig in
 Zentimetern; die 3D-Vorschau baut denselben Plan als begehbares Modell auf.
 
-Die Anwendung läuft vollständig im Browser. Es gibt kein Backend, keine
-Anmeldung und keine Datenübertragung — Projekte liegen im `localStorage` und
-lassen sich als Datei exportieren.
+Der Editor läuft vollständig im Browser. Dazu kommt ein schlanker Go-Server,
+der Projekte speichert, sie über Links teilbar macht und Grundrisse als SVG
+ausliefert — ohne Anmeldung und ohne Datenbank.
 
 ## Funktionen
 
@@ -47,15 +47,33 @@ lassen sich als Datei exportieren.
 - **SVG** — Vektorplan, in Millimetern bemaßt und damit direkt druck- und
   CAD-tauglich
 
+### Server (Go)
+- **Benannte Projekte** — anlegen, laden, speichern, löschen über eine REST-API
+- **Kennzahlen serverseitig** — Raumzahl und Fläche werden aus dem Grundriss
+  gerechnet, nicht vom Client geglaubt
+- **Freigabe-Links** — ein 32-stelliger Token gibt einen Grundriss nur lesend
+  frei und lässt sich jederzeit zurückziehen
+- **SVG ohne Browser** — `/api/projects/<id>/svg` liefert den bemaßten Plan
+  direkt aus, verlinkbar und aus Skripten abrufbar
+- **Ablage** — eine JSON-Datei je Projekt, atomar geschrieben, keine Datenbank
+
 ## Schnellstart
 
 ### Entwicklung
 
 ```bash
 npm install
-npm run dev     # http://localhost:5173
-npm test        # Geometrie- und Modelltests
+npm run dev              # Editor auf http://localhost:5173
+npm test                 # Geometrie- und Modelltests
+
+cd server && go run .    # Server auf http://localhost:8090
+cd server && go test ./... && go vet ./...
 ```
+
+Die Raumerkennung existiert zweimal — in JavaScript für den Editor und in Go
+für Kennzahlen und SVG-Export. Beide Testläufe prüfen dieselben Fälle,
+darunter die Beispielwohnung mit ihren drei Räumen und exakt 54 m². Weicht eine
+Seite ab, fällt ein Test um.
 
 ### Mit Docker
 
@@ -63,7 +81,22 @@ npm test        # Geometrie- und Modelltests
 docker compose up -d --build
 ```
 
-Erreichbar unter [http://localhost:8090](http://localhost:8090).
+Erreichbar unter [http://localhost:8090](http://localhost:8090). Projekte
+liegen im Volume `planr-data`.
+
+### API
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `GET` | `/api/projects` | Übersicht mit Kennzahlen |
+| `POST` | `/api/projects` | Projekt anlegen |
+| `GET` | `/api/projects/<id>` | Grundriss laden |
+| `PUT` | `/api/projects/<id>` | Grundriss speichern |
+| `DELETE` | `/api/projects/<id>` | Projekt löschen |
+| `POST` | `/api/projects/<id>/share` | Freigabe-Link erzeugen |
+| `DELETE` | `/api/projects/<id>/share` | Freigabe zurückziehen |
+| `GET` | `/api/projects/<id>/svg` | bemaßtes SVG |
+| `GET` | `/api/shared/<token>` | geteilter Grundriss, nur lesend |
 
 ## Tastenkürzel
 
@@ -89,7 +122,9 @@ Erreichbar unter [http://localhost:8090](http://localhost:8090).
 - **Frontend** — React 19, Vite 6, HTML5 Canvas 2D
 - **3D** — three.js mit OrbitControls, per Code-Splitting nachgeladen
 - **State** — eigener Store über `useSyncExternalStore`
-- **Auslieferung** — statisches Bundle hinter nginx, kein Server-Code
+- **Server** — Go 1.25, ausschließlich Standardbibliothek
+- **Auslieferung** — eine statisch gelinkte Binärdatei, die auch das Frontend
+  ausliefert
 
 ### Aufbau
 
@@ -110,6 +145,12 @@ Planr/
 │   ├── export.js         # PNG-, SVG- und JSON-Export
 │   ├── store.js          # State + Undo/Redo
 │   └── App.jsx
+├── server/               # Go
+│   ├── main.go           # HTTP, REST-API, Freigabe-Links
+│   ├── store.go          # Projektablage auf der Platte
+│   ├── geometry.go       # Raumerkennung (Go-Seite)
+│   ├── svg.go            # SVG-Export ohne Browser
+│   └── *_test.go
 ├── tests/                # node:test, ohne Browser lauffähig
 ├── Dockerfile
 └── docker-compose.yml
@@ -130,6 +171,11 @@ schnell und kommt ohne Boolesche Operationen auf Geometrie aus.
 
 - **Eine Ebene.** Das Datenmodell kennt mehrere Geschosse, die Oberfläche
   bedient bisher nur eines.
+- **Der Editor spricht noch nicht mit dem Server.** Die REST-API steht und ist
+  getestet, die Bedienoberfläche dafür fehlt — Projekte lassen sich derzeit nur
+  per API oder Freigabe-Link nutzen.
+- **Kein Zugriffsschutz.** Wer die Adresse kennt, sieht alle Projekte. Für den
+  Betrieb im Internet gehört eine Authentifizierung davor.
 - **Flächen nach Wandmitte.** Räume werden entlang der Wandmittellinien
   gemessen, nicht nach lichtem Innenmaß. Für die Wohnfläche nach WoFlV ist das
   zu großzügig.

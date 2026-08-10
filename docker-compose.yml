@@ -5,9 +5,17 @@ services:
     container_name: planr
     restart: unless-stopped
     ports:
-      - "8090:80"
+      - "8090:8090"
+    environment:
+      PLANR_DATA: /data
+    volumes:
+      # Ohne dieses Volume waeren alle Projekte nach einem Neuaufbau weg.
+      - planr-data:/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/healthz"]
       interval: 30s
-      timeout: 3s
+      timeout: 5s
       retries: 3
+
+volumes:
+  planr-data:
