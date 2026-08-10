@@ -57,6 +57,16 @@ ausliefert — ohne Anmeldung und ohne Datenbank.
   direkt aus, verlinkbar und aus Skripten abrufbar
 - **Ablage** — eine JSON-Datei je Projekt, atomar geschrieben, keine Datenbank
 
+### Import und Export
+- **`.planr`** — das eigene Format: JSON mit Kennung, Versionsnummer und
+  Zeitstempel. Ältere Dateien ohne Hülle werden weiterhin gelesen
+- **PNG** — serverseitig gerastert, ohne Browser, Größe über `?size=` steuerbar
+- **SVG** — Vektorplan in Millimetern bemaßt
+- **DXF** — AutoCAD R12, damit der Grundriss in jedes CAD-Programm kommt;
+  getrennte Ebenen für Wände, Öffnungen, Möbel, Räume und Beschriftung
+- **Prüfung vor dem Import** — `/api/validate` meldet alle Mängel auf einmal,
+  statt nach jedem Versuch den nächsten Einzelfehler
+
 ## Schnellstart
 
 ### Entwicklung
@@ -96,6 +106,11 @@ liegen im Volume `planr-data`.
 | `POST` | `/api/projects/<id>/share` | Freigabe-Link erzeugen |
 | `DELETE` | `/api/projects/<id>/share` | Freigabe zurückziehen |
 | `GET` | `/api/projects/<id>/svg` | bemaßtes SVG |
+| `GET` | `/api/projects/<id>/png` | PNG, `?size=` 200–6000 px |
+| `GET` | `/api/projects/<id>/dxf` | DXF für CAD |
+| `GET` | `/api/projects/<id>/planr` | `.planr`-Datei |
+| `POST` | `/api/import` | `.planr` oder JSON hochladen, `?name=` |
+| `POST` | `/api/validate` | Grundriss prüfen, ohne zu speichern |
 | `GET` | `/api/shared/<token>` | geteilter Grundriss, nur lesend |
 
 ## Tastenkürzel
@@ -122,7 +137,8 @@ liegen im Volume `planr-data`.
 - **Frontend** — React 19, Vite 6, HTML5 Canvas 2D
 - **3D** — three.js mit OrbitControls, per Code-Splitting nachgeladen
 - **State** — eigener Store über `useSyncExternalStore`
-- **Server** — Go 1.25, ausschließlich Standardbibliothek
+- **Server** — Go 1.25, Standardbibliothek plus `golang.org/x/image`
+  (Rasterung und Bitmap-Schrift für den PNG-Export)
 - **Auslieferung** — eine statisch gelinkte Binärdatei, die auch das Frontend
   ausliefert
 
@@ -149,7 +165,10 @@ Planr/
 │   ├── main.go           # HTTP, REST-API, Freigabe-Links
 │   ├── store.go          # Projektablage auf der Platte
 │   ├── geometry.go       # Raumerkennung (Go-Seite)
-│   ├── svg.go            # SVG-Export ohne Browser
+│   ├── format.go         # .planr-Format und Prüfung
+│   ├── svg.go            # SVG-Export
+│   ├── raster.go         # PNG-Export ohne Browser
+│   ├── dxf.go            # DXF-Export für CAD
 │   └── *_test.go
 ├── tests/                # node:test, ohne Browser lauffähig
 ├── Dockerfile
@@ -161,6 +180,12 @@ Planr/
 **Einheiten.** Das Modell rechnet ausschließlich in Zentimetern. Die Umrechnung
 in Pixel passiert an einer einzigen Stelle, nämlich im `setTransform()` des
 Renderers. Dadurch kann kein Maßstabsfehler in die Fachlogik einsickern.
+
+**Kein eigenes Dateiformat.** `.planr` ist JSON — eine eigene Syntax hätte
+nichts gebracht, was JSON nicht kann, aber jedes vorhandene Werkzeug
+ausgesperrt. Was gefehlt hat, war Verbindlichkeit: eine Kennung, damit eine
+fremde JSON-Datei nicht versehentlich als Grundriss gilt, eine Versionsnummer
+für spätere Änderungen und eine Prüfung, die alle Mängel auf einmal meldet.
 
 **Öffnungen ohne CSG.** Türen und Fenster werden nicht aus der Wand
 herausgeschnitten. Stattdessen zerlegt `wallSolids()` jede Wand in die massiven
@@ -181,6 +206,9 @@ schnell und kommt ohne Boolesche Operationen auf Geometrie aus.
   zu großzügig.
 - **Möbel sind Quader.** In 3D erscheinen sie als Körper in korrekten Maßen,
   nicht als Modelle.
+- **PNG-Beschriftung ohne Sonderzeichen.** Die eingebaute Bitmap-Schrift deckt
+  nur ASCII ab, deshalb steht dort „m2" statt „m²". SVG und DXF sind davon
+  nicht betroffen.
 - **Kein Dach, keine Treppe in 3D.** Die Treppe ist im Grundriss ein Symbol.
 
 ## Lizenz

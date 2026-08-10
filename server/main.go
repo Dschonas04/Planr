@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -47,6 +48,8 @@ func main() {
 	mux.HandleFunc("/api/projects", s.projects)
 	mux.HandleFunc("/api/projects/", s.project)
 	mux.HandleFunc("/api/shared/", s.shared)
+	mux.HandleFunc("/api/import", s.importFile)
+	mux.HandleFunc("/api/validate", s.validate)
 	mux.Handle("/", s.spa())
 
 	srv := &http.Server{
@@ -176,8 +179,8 @@ func (s *server) project(w http.ResponseWriter, r *http.Request) {
 	case "share":
 		s.share(w, r, id)
 		return
-	case "svg":
-		s.svg(w, r, id)
+	case "svg", "png", "dxf", "planr":
+		s.export(w, r, id, sub)
 		return
 	case "":
 	default:
@@ -281,7 +284,9 @@ func (s *server) shared(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *server) svg(w http.ResponseWriter, r *http.Request, id string) {
+// export bedient alle Ausgabeformate ueber denselben Weg -- Laden, Pruefen
+// und Benennen sind fuer alle gleich, nur das Schreiben unterscheidet sich.
+func (s *server) export(w http.ResponseWriter, r *http.Request, id, format string) {
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "Methode nicht erlaubt")
 		return
@@ -297,10 +302,116 @@ func (s *server) svg(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	meta, _ := s.store.Meta(id)
+	name := safeName(meta.Name)
 
-	w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+safeName(meta.Name)+".svg\"")
-	io.WriteString(w, RenderSVG(p, p.Levels[0]))
+	switch format {
+	case "svg":
+		w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+".svg\"")
+		io.WriteString(w, RenderSVG(p, p.Levels[0]))
+
+	case "png":
+		size := 2000
+		if v := r.URL.Query().Get("size"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil {
+				// Nach oben begrenzt: ein Bild mit 20000 Pixel Kantenlaenge
+				// wuerde den Dienst minutenlang beschaeftigen.
+				size = clamp(n, 200, 6000)
+			}
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+".png\"")
+		if err := RenderPNG(w, p, p.Levels[0], size); err != nil {
+			logf("PNG fuer %s fehlgeschlagen: %v", id, err)
+		}
+
+	case "dxf":
+		w.Header().Set("Content-Type", "application/dxf")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+".dxf\"")
+		if err := RenderDXF(w, p, p.Levels[0]); err != nil {
+			logf("DXF fuer %s fehlgeschlagen: %v", id, err)
+		}
+
+	case "planr":
+		raw, err := Wrap(plan)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "Datei konnte nicht erzeugt werden")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+".planr.json\"")
+		w.Write(raw)
+	}
+}
+
+// importFile nimmt eine .planr-Datei oder eine nackte Projekt-JSON entgegen
+// und legt daraus ein neues Projekt an. Bewusst immer ein neues -- ein Import,
+// der stillschweigend etwas Bestehendes ueberschreibt, ist eine Falle.
+func (s *server) importFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "Methode nicht erlaubt")
+		return
+	}
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxPlanBytes))
+	if err != nil {
+		writeErr(w, http.StatusRequestEntityTooLarge, "Datei zu groß")
+		return
+	}
+	plan, err := Unwrap(raw)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if maengel := Validate(plan); len(maengel) > 0 {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+			"error":  "Grundriss enthält Fehler",
+			"issues": maengel,
+		})
+		return
+	}
+
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		var p Project
+		json.Unmarshal(plan, &p)
+		name = p.Name
+	}
+	meta, err := s.store.Create(name, plan)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Speichern fehlgeschlagen")
+		return
+	}
+	writeJSON(w, http.StatusCreated, meta)
+}
+
+// validate prueft einen Grundriss, ohne ihn zu speichern.
+func (s *server) validate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "Methode nicht erlaubt")
+		return
+	}
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxPlanBytes))
+	if err != nil {
+		writeErr(w, http.StatusRequestEntityTooLarge, "Datei zu groß")
+		return
+	}
+	plan, err := Unwrap(raw)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "issues": []string{err.Error()}})
+		return
+	}
+	maengel := Validate(plan)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": len(maengel) == 0, "issues": maengel})
+}
+
+func clamp(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 func safeName(name string) string {
