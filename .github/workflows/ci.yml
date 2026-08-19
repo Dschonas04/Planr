@@ -1,0 +1,155 @@
+# Gehört nach: Dschonas04/Planr  ->  .github/workflows/ci.yml
+#
+# Prüft Server und Oberfläche, baut das Abbild und rollt es auf dem Docker-Host
+# aus. Läuft auf dem selbst gehosteten Runner, weil nur der an den Docker-Host
+# herankommt -- GitHubs eigene Runner haben keinen Weg ins Heimnetz.
+#
+# Auf dem Host ist weder Go noch Node installiert. Alle Prüfschritte laufen
+# deshalb in Wegwerf-Containern, und zwar unter der Kennung des Runners:
+# ohne --user gehören die Erzeugnisse hinterher root und der nächste Checkout
+# scheitert daran, sie nicht löschen zu können.
+name: Prüfen, bauen, ausrollen
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: planr-ausrollen
+  cancel-in-progress: true
+
+env:
+  ABBILD: planr
+  DIENST: planr
+  HAFEN: 8090
+
+jobs:
+  pruefen:
+    runs-on: [self-hosted, homelab]
+    timeout-minutes: 20
+
+    steps:
+      - name: Altlasten früherer Läufe wegräumen
+        run: |
+          for rest in node_modules dist; do
+            [ -e "$rest" ] || continue
+            [ -w "$rest" ] && continue
+            echo "Nicht beschreibbar, wird als root entfernt: $rest"
+            docker run --rm -v "$PWD":/w -w /w alpine rm -rf "$rest"
+          done
+
+      - name: Quellen holen
+        uses: actions/checkout@v4
+
+      - name: Go prüfen und testen
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod \
+            -v "$GITHUB_WORKSPACE":/src -w /src/server \
+            golang:1.25-alpine sh -c '
+              set -e
+              go vet ./...
+              gofmt -l . | tee /tmp/ungeformt
+              test ! -s /tmp/ungeformt || {
+                echo "Diese Dateien sind nicht gofmt-konform."; exit 1; }
+              go test -count=1 ./...
+            '
+
+      - name: Oberfläche prüfen, testen und übersetzen
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$GITHUB_WORKSPACE":/src -w /src \
+            node:22-alpine sh -c '
+              set -e
+              npm ci
+              npm run typecheck
+              npm test
+              npm run build
+            '
+
+  ausrollen:
+    needs: pruefen
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: [self-hosted, homelab]
+    timeout-minutes: 20
+
+    steps:
+      - name: Quellen holen
+        uses: actions/checkout@v4
+
+      - name: Bisherige Fassung sichern
+        run: |
+          # Für den Rückweg. Gibt es noch keine, ist das der erste Ausrollvorgang
+          # und es gibt schlicht nichts zurückzurollen.
+          if docker image inspect "${ABBILD}:latest" >/dev/null 2>&1; then
+            docker tag "${ABBILD}:latest" "${ABBILD}:vorherige"
+            echo "vorherige=ja" >> "$GITHUB_ENV"
+          else
+            echo "Keine bisherige Fassung vorhanden."
+            echo "vorherige=nein" >> "$GITHUB_ENV"
+          fi
+
+      - name: Abbild bauen
+        run: |
+          docker build -t "${ABBILD}:${GITHUB_SHA::7}" -t "${ABBILD}:latest" .
+
+      - name: Ausrollen
+        run: |
+          docker compose up -d --no-build
+          docker compose ps
+
+      - name: Nachprüfen, dass der Dienst wirklich antwortet
+        run: |
+          # Nicht nur "Container läuft", sondern die tatsächliche Antwort. Ein
+          # Container kann laufen und trotzdem 500 liefern.
+          for versuch in $(seq 1 15); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+                   "http://127.0.0.1:${HAFEN}/healthz" || true)
+            [ "$code" = "200" ] && { echo "Dienst antwortet mit 200."; exit 0; }
+            echo "Versuch $versuch: HTTP $code -- warte"
+            sleep 4
+          done
+          echo "Der Dienst antwortet nach dem Ausrollen nicht mit 200."
+          docker compose logs --tail 40
+          exit 1
+
+      - name: Bei Fehlschlag zurückrollen
+        if: failure()
+        run: |
+          if [ "$vorherige" = "ja" ]; then
+            echo "Rolle auf die vorherige Fassung zurück."
+            docker tag "${ABBILD}:vorherige" "${ABBILD}:latest"
+            docker compose up -d --no-build
+            docker compose ps
+          else
+            echo "Keine vorherige Fassung -- es gibt nichts zurückzurollen."
+          fi
+
+      - name: Alte Abbilder ausdünnen
+        if: always()
+        run: |
+          # Die letzten fünf mit Commit-Kennung reichen; ohne das läuft die
+          # Platte voll. :latest und :vorherige bleiben unangetastet.
+          docker images "${ABBILD}" --format '{{.Tag}} {{.CreatedAt}}' \
+            | grep -Ev '^(latest|vorherige) ' \
+            | sort -k2 -r | tail -n +6 | awk '{print $1}' \
+            | xargs -r -I{} docker image rm "${ABBILD}:{}" || true
+
+      - name: Zusammenfassung
+        if: always()
+        run: |
+          {
+            echo "### Planr"
+            echo ""
+            echo "- Commit: \`${GITHUB_SHA::7}\`"
+            echo "- Erreichbar: http://10.0.2.43:${HAFEN}"
+          } >> "$GITHUB_STEP_SUMMARY"
