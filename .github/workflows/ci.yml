@@ -45,7 +45,7 @@ jobs:
           done
 
       - name: Quellen holen
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Go prüfen und testen
         run: |
@@ -84,7 +84,7 @@ jobs:
 
     steps:
       - name: Quellen holen
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Bisherige Fassung sichern
         run: |
