@@ -900,3 +900,52 @@ body.nur-lesen .a-btn[title="Alles löschen"] { display: none; }
 @media (max-width: 1100px) {
   .workspace.nur-lesen { grid-template-columns: 1fr 220px; }
 }
+
+/* ════════════════════════════════════════════
+   Engere Fenster: nichts überlappt, nichts bricht mitten im Wort um
+   ════════════════════════════════════════════ */
+.app { grid-template-columns: minmax(0, 1fr); }
+.appbar { flex-wrap: wrap; row-gap: 6px; }
+.projekt-titel { flex: 1 1 160px; }
+.projekt-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.projekt-titel > .speicherstand, .projekt-titel > .nur-lesen-marke { flex-shrink: 0; }
+.speicherstand.lokal { white-space: nowrap; }
+
+/* Textfelder (Projekt- und Raumname) nehmen die freie Breite, statt bei 108 px abzuschneiden. */
+.field:has(input[type='text']) > .field-input { flex: 1; min-width: 0; justify-content: flex-end; }
+.field-input input[type='text'] { width: 100%; min-width: 0; max-width: 200px; }
+.field > input[type='text'] { flex: 1; min-width: 0; max-width: 200px; }
+
+.status-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-right { flex-shrink: 0; white-space: nowrap; }
+
+/* Maße unter den Namen statt daneben: sonst blieb von „Einzelbett 90×200“ nur „Einzelbett …“. */
+.catalog-item { grid-template-columns: 12px 1fr; row-gap: 1px; }
+.catalog-item .catalog-label { grid-column: 2; }
+.catalog-item .catalog-dims { grid-column: 2; }
+
+@media (max-width: 1180px) {
+  .tool-label { display: none; }
+  .speicherstand.lokal { display: none; }
+}
+
+@media (max-width: 1100px) {
+  .status-hint { display: none; }
+  .status-right { margin-left: auto; }
+}
+
+/* Handy und schmale Tablets: Plan oben, Katalog und Eigenschaften darunter. */
+@media (max-width: 760px) {
+  html, body, #root { height: auto; }
+  .app { height: auto; min-height: 100%; }
+  .appbar-actions, .toolbar { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; }
+  .appbar-actions > *, .toolbar > * { flex-shrink: 0; }
+  .appbar-actions { flex: 1 1 100%; }
+  .toolbar { gap: 10px; }
+  .workspace, .workspace.nur-lesen { grid-template-columns: 1fr; grid-template-rows: 62vh auto auto; }
+  .workspace .viewport { order: 1; }
+  .workspace .properties { order: 2; border: 0; border-top: 1px solid var(--line); }
+  .workspace .catalog { order: 3; border: 0; border-top: 1px solid var(--line); max-height: 60vh; }
+  .statusbar { flex-wrap: wrap; row-gap: 4px; }
+  .status-right { flex-wrap: wrap; flex-shrink: 1; min-width: 0; white-space: normal; row-gap: 4px; column-gap: 10px; }
+}

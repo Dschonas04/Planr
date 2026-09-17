@@ -82,6 +82,25 @@ function drawLabel(ctx, text, x, y, view, opts = {}) {
   ctx.restore();
 }
 
+/** Waagerechter Platz in einem gedrehten Rechteck, grob: bei Schräglage die kürzere Seite. */
+function breiteFuerText(w, d, rad) {
+  const c = Math.abs(Math.cos(rad));
+  const s = Math.abs(Math.sin(rad));
+  if (c > 0.97) return w;
+  if (s > 0.97) return d;
+  return Math.min(w, d);
+}
+
+function passenderText(ctx, label, verfuegbar, size) {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.font = `${size}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+  const kurz = label.replace(/\s+\d+(?:[.,]\d+)?\s*[×x]\s*\d+.*$/, '');
+  const text = [label, kurz].find((t) => t && ctx.measureText(t).width <= verfuegbar) || null;
+  ctx.restore();
+  return text;
+}
+
 function drawGrid(ctx, view, canvasSize, gridCm) {
   const left = -view.panX / view.zoom;
   const top = -view.panY / view.zoom;
@@ -246,10 +265,15 @@ function drawFurniture(ctx, level, view, selection) {
       }
     }
 
-    // Beschriftung nur, wenn sie ins Objekt passt.
-    if (view.zoom * Math.min(w, d) > 42) {
-      ctx.rotate(-rad);
-      drawLabel(ctx, f.label, 0, 0, view, { size: 11, color: '#2f3438' });
+    // Beschriftung nur, wenn sie ins Objekt passt -- in der Höhe und in der
+    // Breite. Sonst stand „Dusche 90×90“ quer über der Wand daneben. Passt der
+    // volle Name nicht, reicht er ohne Maße; passt auch das nicht, keiner.
+    if (view.zoom * Math.min(w, d) > 20) {
+      const text = passenderText(ctx, f.label, breiteFuerText(w, d, rad) * view.zoom - 8, 11);
+      if (text) {
+        ctx.rotate(-rad);
+        drawLabel(ctx, text, 0, 0, view, { size: 11, color: '#2f3438' });
+      }
     }
     ctx.restore();
   }
