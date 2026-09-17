@@ -180,11 +180,12 @@ export default function App() {
         {nurLesen ? (
           <span className="projekt-titel">
             <span className="nur-lesen-marke">Nur ansehen</span>
-            {state.geteilterName}
+            <span className="projekt-name">{state.geteilterName}</span>
           </span>
         ) : (
           <span className="projekt-titel">
-            {state.serverProjekt ? state.serverProjekt.name : `${state.project.name} (nur in diesem Browser)`}
+            <span className="projekt-name">{state.serverProjekt ? state.serverProjekt.name : state.project.name}</span>
+            {!state.serverProjekt && <span className="speicherstand lokal">nur in diesem Browser</span>}
             {state.speicherstand && (
               <span className={`speicherstand ${state.speicherstand}`}>{SPEICHERSTAND[state.speicherstand]}</span>
             )}
