@@ -1,4 +1,5 @@
 import { activeLevel, setState, useStore } from '../store.js';
+import { FussLinks } from './Rechtliches.jsx';
 
 const HINTS = {
   select: 'Klicken zum Auswählen, ziehen zum Verschieben. R dreht Möbel um 15°.',
@@ -45,6 +46,7 @@ export default function StatusBar() {
         </label>
         <span className="zoom">{Math.round(state.view.zoom * 100)} %</span>
         <span className="level-name">{level.name}</span>
+        <FussLinks />
       </span>
     </footer>
   );

@@ -154,7 +154,7 @@ func TestPNGGroesseWirdBegrenzt(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &meta)
 
 	// Ohne Begrenzung wuerde der Dienst hier minutenlang rechnen.
-	r := httptest.NewRequest(http.MethodGet, "/api/projects/"+meta.ID+"/png?size=99999", nil)
+	r := testAnfrage(http.MethodGet, "/api/projects/"+meta.ID+"/png?size=99999", nil)
 	w = httptest.NewRecorder()
 	s.project(w, r)
 	if w.Code != http.StatusOK {
@@ -273,7 +273,7 @@ func TestImportLegtNeuesProjektAn(t *testing.T) {
 	s := testServer(t)
 	raw, _ := Wrap(json.RawMessage(beispielPlan))
 
-	r := httptest.NewRequest(http.MethodPost, "/api/import?name=Importiert", bytes.NewReader(raw))
+	r := testAnfrage(http.MethodPost, "/api/import?name=Importiert", bytes.NewReader(raw))
 	w := httptest.NewRecorder()
 	s.importFile(w, r)
 	if w.Code != http.StatusCreated {
@@ -293,7 +293,7 @@ func TestImportLehntFehlerhaftenGrundrissAb(t *testing.T) {
 	s := testServer(t)
 	kaputt := `{"levels":[{"walls":[{"id":"w1","a":{"x":0,"y":0},"b":{"x":0,"y":0},"thicknessCm":0}]}]}`
 
-	r := httptest.NewRequest(http.MethodPost, "/api/import", strings.NewReader(kaputt))
+	r := testAnfrage(http.MethodPost, "/api/import", strings.NewReader(kaputt))
 	w := httptest.NewRecorder()
 	s.importFile(w, r)
 	if w.Code != http.StatusUnprocessableEntity {
@@ -316,7 +316,7 @@ func TestImportUeberschreibtNichts(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &erst)
 
 	raw, _ := Wrap(json.RawMessage(beispielPlan))
-	r := httptest.NewRequest(http.MethodPost, "/api/import?name=Bestehend", bytes.NewReader(raw))
+	r := testAnfrage(http.MethodPost, "/api/import?name=Bestehend", bytes.NewReader(raw))
 	w = httptest.NewRecorder()
 	s.importFile(w, r)
 
@@ -332,7 +332,7 @@ func TestImportUeberschreibtNichts(t *testing.T) {
 
 func TestValidateEndpunktMeldetOhneZuSpeichern(t *testing.T) {
 	s := testServer(t)
-	r := httptest.NewRequest(http.MethodPost, "/api/validate", strings.NewReader(beispielPlan))
+	r := testAnfrage(http.MethodPost, "/api/validate", strings.NewReader(beispielPlan))
 	w := httptest.NewRecorder()
 	s.validate(w, r)
 
@@ -362,7 +362,7 @@ func TestAlleExportformateAntworten(t *testing.T) {
 		"planr": "application/json",
 	}
 	for format, ct := range faelle {
-		r := httptest.NewRequest(http.MethodGet, "/api/projects/"+meta.ID+"/"+format, nil)
+		r := testAnfrage(http.MethodGet, "/api/projects/"+meta.ID+"/"+format, nil)
 		w := httptest.NewRecorder()
 		s.project(w, r)
 		if w.Code != http.StatusOK {

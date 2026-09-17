@@ -8,6 +8,11 @@ services:
       - "8090:8090"
     environment:
       PLANR_DATA: /data
+      # Konten legt die Verwaltung an; "offen" erlaubt Selbstregistrierung.
+      PLANR_REGISTRIERUNG: ${PLANR_REGISTRIERUNG:-geschlossen}
+      # Hinter einem Reverse Proxy mit TLS auf "ja" setzen.
+      PLANR_HINTER_PROXY: ${PLANR_HINTER_PROXY:-nein}
+      PLANR_METRIKEN: ${PLANR_METRIKEN:-nein}
     volumes:
       # Ohne dieses Volume waeren alle Projekte nach einem Neuaufbau weg.
       - planr-data:/data

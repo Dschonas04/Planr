@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,11 +11,20 @@ import (
 
 func testServer(t *testing.T) *server {
 	t.Helper()
-	store, err := NewStore(t.TempDir())
+	s, err := neuerServer(config{daten: t.TempDir(), static: t.TempDir(), sitzungTage: 14})
 	if err != nil {
-		t.Fatalf("Store nicht anlegbar: %v", err)
+		t.Fatalf("Server nicht anlegbar: %v", err)
 	}
-	return &server{store: store, static: t.TempDir()}
+	return s
+}
+
+// testKonto ist das Konto, als das die Handler-Tests anfragen. Die Tests
+// rufen die Handler direkt auf; die Anmeldung haengt wie im Betrieb am
+// Request-Kontext.
+var testKonto = &Konto{ID: "k1", Email: "test@example.org", Name: "Test", Rolle: RolleNutzer}
+
+func testAnfrage(methode, pfad string, rumpf io.Reader) *http.Request {
+	return mitKonto(httptest.NewRequest(methode, pfad, rumpf), testKonto)
 }
 
 const beispielPlan = `{"version":1,"name":"Test","gridCm":10,"levels":[{"id":"l1","name":"EG","heightCm":250,
@@ -27,7 +37,7 @@ const beispielPlan = `{"version":1,"name":"Test","gridCm":10,"levels":[{"id":"l1
 
 func post(t *testing.T, s *server, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	r := testAnfrage(http.MethodPost, path, strings.NewReader(body))
 	w := httptest.NewRecorder()
 	switch {
 	case path == "/api/projects":
@@ -55,7 +65,7 @@ func TestProjektAnlegenLesenSpeichern(t *testing.T) {
 		t.Errorf("Kennzahlen falsch: %d Raeume, %d cm2", meta.Rooms, meta.AreaCm2)
 	}
 
-	r := httptest.NewRequest(http.MethodGet, "/api/projects/"+meta.ID, nil)
+	r := testAnfrage(http.MethodGet, "/api/projects/"+meta.ID, nil)
 	w = httptest.NewRecorder()
 	s.project(w, r)
 	if w.Code != http.StatusOK {
@@ -73,7 +83,7 @@ func TestProjektAnlegenLesenSpeichern(t *testing.T) {
 		t.Errorf("Grundriss kam nicht unveraendert zurueck")
 	}
 
-	r = httptest.NewRequest(http.MethodPut, "/api/projects/"+meta.ID,
+	r = testAnfrage(http.MethodPut, "/api/projects/"+meta.ID,
 		strings.NewReader(`{"name":"Umbenannt","plan":`+beispielPlan+`}`))
 	w = httptest.NewRecorder()
 	s.project(w, r)
@@ -105,7 +115,7 @@ func TestFreigabeLinkGiltNurLesendUndLaesstSichZurueckziehen(t *testing.T) {
 	var meta ProjectMeta
 	json.Unmarshal(w.Body.Bytes(), &meta)
 
-	r := httptest.NewRequest(http.MethodPost, "/api/projects/"+meta.ID+"/share", nil)
+	r := testAnfrage(http.MethodPost, "/api/projects/"+meta.ID+"/share", nil)
 	w = httptest.NewRecorder()
 	s.project(w, r)
 	if w.Code != http.StatusOK {
@@ -119,7 +129,7 @@ func TestFreigabeLinkGiltNurLesendUndLaesstSichZurueckziehen(t *testing.T) {
 		t.Errorf("Token hat %d Zeichen, erwartet 32", len(share.Token))
 	}
 
-	r = httptest.NewRequest(http.MethodGet, "/api/shared/"+share.Token, nil)
+	r = testAnfrage(http.MethodGet, "/api/shared/"+share.Token, nil)
 	w = httptest.NewRecorder()
 	s.shared(w, r)
 	if w.Code != http.StatusOK {
@@ -132,14 +142,14 @@ func TestFreigabeLinkGiltNurLesendUndLaesstSichZurueckziehen(t *testing.T) {
 		t.Error("Antwort verraet Projekt-ID oder Token")
 	}
 
-	r = httptest.NewRequest(http.MethodDelete, "/api/projects/"+meta.ID+"/share", nil)
+	r = testAnfrage(http.MethodDelete, "/api/projects/"+meta.ID+"/share", nil)
 	w = httptest.NewRecorder()
 	s.project(w, r)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("Zurueckziehen ergab %d", w.Code)
 	}
 
-	r = httptest.NewRequest(http.MethodGet, "/api/shared/"+share.Token, nil)
+	r = testAnfrage(http.MethodGet, "/api/shared/"+share.Token, nil)
 	w = httptest.NewRecorder()
 	s.shared(w, r)
 	if w.Code != http.StatusNotFound {
@@ -154,7 +164,7 @@ func TestListeGibtKeineFreigabeTokenAus(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &meta)
 	tok, _ := s.store.Share(meta.ID)
 
-	r := httptest.NewRequest(http.MethodGet, "/api/projects", nil)
+	r := testAnfrage(http.MethodGet, "/api/projects", nil)
 	w = httptest.NewRecorder()
 	s.projects(w, r)
 	if strings.Contains(w.Body.String(), tok) {
@@ -168,7 +178,7 @@ func TestSVGExport(t *testing.T) {
 	var meta ProjectMeta
 	json.Unmarshal(w.Body.Bytes(), &meta)
 
-	r := httptest.NewRequest(http.MethodGet, "/api/projects/"+meta.ID+"/svg", nil)
+	r := testAnfrage(http.MethodGet, "/api/projects/"+meta.ID+"/svg", nil)
 	w = httptest.NewRecorder()
 	s.project(w, r)
 	if w.Code != http.StatusOK {
@@ -188,7 +198,7 @@ func TestSVGExport(t *testing.T) {
 func TestUnbekanntesProjekt(t *testing.T) {
 	s := testServer(t)
 	for _, method := range []string{http.MethodGet, http.MethodDelete} {
-		r := httptest.NewRequest(method, "/api/projects/gibtsnicht", nil)
+		r := testAnfrage(method, "/api/projects/gibtsnicht", nil)
 		w := httptest.NewRecorder()
 		s.project(w, r)
 		if w.Code != http.StatusNotFound {
@@ -203,7 +213,7 @@ func TestLoeschenEntferntProjekt(t *testing.T) {
 	var meta ProjectMeta
 	json.Unmarshal(w.Body.Bytes(), &meta)
 
-	r := httptest.NewRequest(http.MethodDelete, "/api/projects/"+meta.ID, nil)
+	r := testAnfrage(http.MethodDelete, "/api/projects/"+meta.ID, nil)
 	w = httptest.NewRecorder()
 	s.project(w, r)
 	if w.Code != http.StatusNoContent {

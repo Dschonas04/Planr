@@ -9,11 +9,12 @@ RUN npm run build
 # --- Server bauen ---
 FROM golang:1.25-alpine AS server
 WORKDIR /src
-COPY server/go.mod ./
+COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/ ./
 # Statisch gelinkt, damit das Ergebnis ohne libc auskommt.
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /planr .
+ARG VERSION=1.0.0
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /planr .
 
 # --- Auslieferung ---
 FROM alpine:3.21
