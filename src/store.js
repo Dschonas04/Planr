@@ -38,6 +38,17 @@ let state = {
   },
   view3d: false,
   toast: null,
+  // Konto und Server
+  auth: null,
+  anmeldungNoetig: false,
+  serverProjekt: null, // { id, name, geteilt } -- null: nur in diesem Browser
+  speicherstand: null, // 'geaendert' | 'speichert' | 'gespeichert' | 'fehler'
+  nurLesen: false,
+  geteilterName: null,
+  projekteOffen: false,
+  teilenOffen: false,
+  kontoOffen: false,
+  rechtlichesOffen: null,
 };
 
 let history = [];
@@ -63,8 +74,17 @@ export function setState(patch) {
   emit();
 }
 
+// serverSink meldet dem Abgleich (sync.js), dass sich das Projekt geaendert
+// hat. Der Store kennt den Server nicht -- so bleibt die Abhaengigkeit
+// einseitig.
+let serverSink = null;
+export function setServerSink(fn) {
+  serverSink = fn;
+}
+
 let persistTimer = null;
-function persist() {
+function persist({ vomServer = false } = {}) {
+  if (!vomServer && serverSink) serverSink();
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     try {
@@ -80,7 +100,15 @@ function persist() {
  * sie frei veraendern -- so kann kein Reducer versehentlich den alten Stand
  * mutieren, den die History noch braucht.
  */
+function nurLesenMelden() {
+  toast('Nur ansehen: Dieser Grundriss lässt sich hier nicht ändern.');
+}
+
 export function commit(mutator, { merge = false } = {}) {
+  if (state.nurLesen) {
+    nurLesenMelden();
+    return;
+  }
   const snapshot = state.project;
   const draft = structuredClone(snapshot);
   const result = mutator(draft);
@@ -99,7 +127,7 @@ export function commit(mutator, { merge = false } = {}) {
 }
 
 export function undo() {
-  if (!history.length) return;
+  if (state.nurLesen || !history.length) return;
   future.push(state.project);
   const prev = history.pop();
   state = { ...state, project: prev, draft: null, selection: null };
@@ -108,7 +136,7 @@ export function undo() {
 }
 
 export function redo() {
-  if (!future.length) return;
+  if (state.nurLesen || !future.length) return;
   history.push(state.project);
   const next = future.pop();
   state = { ...state, project: next, draft: null, selection: null };
@@ -133,10 +161,10 @@ export function activeLevel(s = state) {
   return s.project.levels[Math.min(s.activeLevel, s.project.levels.length - 1)];
 }
 
-export function loadProject(project) {
+export function loadProject(project, { vomServer = false } = {}) {
   resetHistory();
   state = { ...state, project, activeLevel: 0, selection: null, draft: null };
-  persist();
+  persist({ vomServer });
   emit();
 }
 

@@ -38,6 +38,9 @@ type ProjectMeta struct {
 	ShareToken string `json:"shareToken,omitempty"`
 	Rooms      int    `json:"rooms"`
 	AreaCm2    int64  `json:"areaCm2"`
+	// Owner ist die Kennung des Kontos. Leer bei Projekten aus der Zeit vor
+	// den Konten; die bekommt das erste Administratorkonto.
+	Owner string `json:"owner,omitempty"`
 }
 
 type Store struct {
@@ -139,9 +142,11 @@ func (s *Store) Meta(id string) (ProjectMeta, bool) {
 	return *p, true
 }
 
-func (s *Store) Create(name string, plan json.RawMessage) (ProjectMeta, error) {
+// Create legt ein Projekt an. Die Kennung hat 128 Bit: frueher waren es 32,
+// und die liessen sich in Stunden durchprobieren.
+func (s *Store) Create(name, owner string, plan json.RawMessage) (ProjectMeta, error) {
 	now := time.Now().UnixMilli()
-	meta := &ProjectMeta{ID: token(4), Name: trim(name, 120), CreatedAt: now, UpdatedAt: now}
+	meta := &ProjectMeta{ID: token(16), Name: trim(name, 120), CreatedAt: now, UpdatedAt: now, Owner: owner}
 	stats(plan, meta)
 
 	if err := writeAtomic(s.projectFile(meta.ID), plan); err != nil {
@@ -231,6 +236,63 @@ func (s *Store) Unshare(id string) bool {
 	p.ShareToken = ""
 	s.persistIndex()
 	return true
+}
+
+// WaisenZuordnen gibt allen Projekten ohne Eigentuemer einen.
+func (s *Store) WaisenZuordnen(owner string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, p := range s.projects {
+		if p.Owner == "" {
+			p.Owner = owner
+			n++
+		}
+	}
+	if n > 0 {
+		s.persistIndex()
+	}
+	return n
+}
+
+// Uebertragen gibt alle Projekte eines Kontos einem anderen.
+func (s *Store) Uebertragen(von, an string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, p := range s.projects {
+		if p.Owner == von {
+			p.Owner = an
+			n++
+		}
+	}
+	if n > 0 {
+		s.persistIndex()
+	}
+	return n
+}
+
+// Alle liefert alle Projekte samt Freigabe-Token. Was davon wer sehen darf,
+// entscheidet der Handler.
+func (s *Store) Alle() []ProjectMeta {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]ProjectMeta, 0, len(s.projects))
+	for _, p := range s.projects {
+		out = append(out, *p)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt > out[j].UpdatedAt })
+	return out
+}
+
+func (s *Store) VonKonto(owner string) []ProjectMeta {
+	var out []ProjectMeta
+	for _, p := range s.Alle() {
+		if p.Owner == owner {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func (s *Store) ByToken(t string) (string, bool) {

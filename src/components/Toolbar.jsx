@@ -17,13 +17,17 @@ const TOOLS = [
   { id: 'pan', label: 'Verschieben', key: 'H', Icon: IconPan },
 ];
 
+// Wer nur ansehen darf, braucht nur die Werkzeuge, die nichts aendern.
+const NUR_ANSEHEN = new Set(['select', 'pan']);
+
 export default function Toolbar() {
   const state = useStore();
+  const werkzeuge = state.nurLesen ? TOOLS.filter((t) => NUR_ANSEHEN.has(t.id)) : TOOLS;
 
   return (
     <div className="toolbar">
       <div className="toolbar-group">
-        {TOOLS.map((t) => (
+        {werkzeuge.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -39,7 +43,7 @@ export default function Toolbar() {
         ))}
       </div>
 
-      <div className="toolbar-group">
+      {!state.nurLesen && <div className="toolbar-group">
         <button type="button" className="tool" disabled={!canUndo()} onClick={undo} title="Rückgängig (Strg+Z)">
           <span className="tool-icon">
             <IconUndo />
@@ -50,7 +54,7 @@ export default function Toolbar() {
             <IconRedo />
           </span>
         </button>
-      </div>
+      </div>}
 
       <div className="toolbar-group toolbar-toggles">
         <label className="toggle" title="Am Raster einrasten">

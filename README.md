@@ -67,6 +67,91 @@ ausliefert — ohne Anmeldung und ohne Datenbank.
 - **Prüfung vor dem Import** — `/api/validate` meldet alle Mängel auf einmal,
   statt nach jedem Versuch den nächsten Einzelfehler
 
+## Konten, Rechte und Freigaben
+
+Planr ist für den Einsatz in Planungsbüros, bei Maklern und in Firmen gebaut:
+Projekte gehören einem Konto und liegen auf dem Server, nicht mehr nur in einem
+einzelnen Browser.
+
+| Rolle | Darf |
+|---|---|
+| **Administrator** | alles, was Nutzer dürfen; dazu alle Projekte sehen, Konten anlegen, sperren, Passwörter setzen und löschen, Impressum und Datenschutzerklärung pflegen, Datensicherung herunterladen |
+| **Nutzer** | eigene Projekte anlegen, speichern, importieren, exportieren, teilen und löschen; eigenes Konto verwalten, Daten exportieren, Konto löschen |
+| **Empfänger eines Links** | den geteilten Grundriss samt 3D-Ansicht ansehen und als PNG/SVG exportieren – ohne Konto, ohne Änderungsmöglichkeit |
+
+- **Einrichtung** – Beim ersten Aufruf fragt Planr nach dem ersten Konto; es
+  wird Administrator. Projekte aus der Zeit vor den Konten gehen an dieses Konto.
+- **Registrierung** – standardmäßig geschlossen. Konten legt ein Administrator
+  unter *Konto → Konten* an; mit `PLANR_REGISTRIERUNG=offen` darf sich jeder
+  selbst registrieren.
+- **Speichern** – Ein Projekt auf dem Server wird kurz nach jeder Änderung
+  automatisch gespeichert; die Kopfzeile zeigt den Stand.
+- **Teilen** – *Teilen* stellt einen Link zum Ansehen aus und bietet die
+  Exporte des Servers (DXF, PNG, SVG, `.planr`). Der Link lässt sich jederzeit
+  zurückziehen.
+- **Ausscheidende Mitarbeiter** – Beim Löschen eines Kontos durch einen
+  Administrator gehen dessen Projekte an den Administrator über.
+
+## Betrieb
+
+### Einstellungen
+
+| Variable | Vorgabe | Bedeutung |
+|---|---|---|
+| `PORT` | `8090` | Port des Dienstes |
+| `PLANR_DATA` | `data` (`/data` im Container) | Datenverzeichnis: Projekte, Konten, rechtliche Texte |
+| `PLANR_REGISTRIERUNG` | `geschlossen` | `offen` erlaubt Selbstregistrierung |
+| `PLANR_SITZUNG_TAGE` | `14` | Laufzeit einer Anmeldung; wird bei Nutzung verlängert |
+| `PLANR_HINTER_PROXY` | `nein` | `ja`: `X-Forwarded-For`/`-Proto` des Reverse Proxy auswerten |
+| `PLANR_SICHERES_COOKIE` | `nein` | `ja`: Sitzungs-Cookie immer mit `Secure` |
+| `PLANR_METRIKEN` | `nein` | `ja`: Prometheus-Metriken unter `/metrics` |
+
+### Im Internet betreiben
+
+Planr gehört hinter einen Reverse Proxy mit TLS (nginx, Caddy, Traefik); dann
+`PLANR_HINTER_PROXY=ja` setzen.
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8090;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    client_max_body_size 16m;
+}
+```
+
+### Datensicherung
+
+- **Über die Oberfläche** – *Konto → Sicherung* lädt das Datenverzeichnis als
+  `tar.gz` (ohne Sitzungen).
+- **Auf dem Host** – das Volume `planr-data` sichern, z. B.
+  `docker run --rm -v planr_planr-data:/d -v "$PWD":/b alpine tar czf /b/planr.tar.gz -C /d .`
+- **Wiederherstellen** – Dienst stoppen, Archiv in das Datenverzeichnis
+  entpacken, Dienst starten. Alle melden sich neu an.
+
+### Datenschutz und Rechtliches
+
+- Planr lädt nichts von fremden Servern und setzt nur ein technisch notwendiges
+  Sitzungs-Cookie.
+- *Konto → Rechtliches* pflegt **Impressum** und **Datenschutzerklärung**; beide
+  sind in der Statusleiste und auf der Anmeldeseite verlinkt. Die mitgelieferte
+  Datenschutzvorlage beschreibt die tatsächliche Verarbeitung und muss vom
+  Betreiber geprüft werden.
+- Unter *Konto → Meine Daten* lädt jeder Nutzer alle eigenen Projekte samt
+  Grundriss als JSON herunter (Art. 15/20 DSGVO) und löscht sein Konto samt
+  Projekten (Art. 17).
+- Das Server-Protokoll enthält weder IP-Adressen noch Adressparameter.
+
+### Sicherheit
+
+Passwörter mit bcrypt, Sitzungs-Tokens nur als SHA-256 gespeichert, Konten- und
+Sitzungsdateien mit Rechten `0600`, Projektkennungen mit 128 Bit. Jeder
+Projekt-, Export- und Import-Aufruf prüft Anmeldung und Eigentum; fremde
+Projekte antworten mit 404. Content-Security-Policy ohne fremde Quellen,
+CSRF-Schutz über einen Pflicht-Header, Anfragebremse je IP und je
+E-Mail-Adresse. Details: [SECURITY.md](SECURITY.md).
+
 ## Schnellstart
 
 ### Entwicklung
@@ -97,8 +182,21 @@ liegen im Volume `planr-data`.
 
 ### API
 
+Alle Pfade unter `/api/projects`, `/api/import` und `/api/validate` verlangen
+eine Anmeldung (Cookie `planr_sitzung`) und liefern nur eigene Projekte –
+Administratoren sehen alle. Ändernde Anfragen brauchen den Kopf
+`X-Requested-With: planr`.
+
 | Methode | Pfad | Zweck |
 |---|---|---|
+| `GET` | `/api/status` | Version, Einrichtung nötig?, angemeldetes Konto |
+| `POST` | `/api/registrierung` | Konto anlegen (erstes Konto oder offene Registrierung) |
+| `POST` | `/api/anmeldung` | anmelden |
+| `POST` | `/api/abmeldung` | abmelden |
+| `GET` `PATCH` `DELETE` | `/api/konto` | eigenes Konto lesen, umbenennen, löschen |
+| `GET` | `/api/konto/export` | alle eigenen Daten als JSON |
+| `GET` `POST` | `/api/admin/konten` | Konten verwalten (Administratoren) |
+| `GET` | `/api/admin/sicherung` | Datensicherung als tar.gz (Administratoren) |
 | `GET` | `/api/projects` | Übersicht mit Kennzahlen |
 | `POST` | `/api/projects` | Projekt anlegen |
 | `GET` | `/api/projects/<id>` | Grundriss laden |
@@ -140,7 +238,8 @@ liegen im Volume `planr-data`.
   und Bogenmaß
 - **3D** — three.js mit OrbitControls, per Code-Splitting nachgeladen
 - **State** — eigener Store über `useSyncExternalStore`
-- **Server** — Go 1.25, Standardbibliothek plus `golang.org/x/image`
+- **Server** — Go 1.25, Standardbibliothek plus `golang.org/x/image` und
+  `golang.org/x/crypto/bcrypt`
   (Rasterung und Bitmap-Schrift für den PNG-Export)
 - **Auslieferung** — eine statisch gelinkte Binärdatei, die auch das Frontend
   ausliefert
@@ -167,6 +266,11 @@ Planr/
 │   └── App.jsx
 ├── server/               # Go
 │   ├── main.go           # HTTP, REST-API, Freigabe-Links
+│   ├── konten.go         # Konten, Sitzungen, bcrypt
+│   ├── api_konten.go     # Anmeldung, Konto, Verwaltung
+│   ├── schutz.go         # Sicherheits-Header, CSRF, Anfragebremse
+│   ├── rechtliches.go    # Impressum, Datenschutzerklärung
+│   ├── sicherung.go      # Datensicherung
 │   ├── store.go          # Projektablage auf der Platte
 │   ├── geometry.go       # Raumerkennung (Go-Seite)
 │   ├── format.go         # .planr-Format und Prüfung

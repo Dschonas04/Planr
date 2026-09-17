@@ -482,3 +482,421 @@ body {
     display: none;
   }
 }
+
+
+/* ════════════════════════════════════════════
+   Konten, Projekte auf dem Server, Teilen (1.0)
+   Die Dialoge teilen sich Aufbau und Klassen mit Blankr; die Farben kommen
+   aus Planrs eigener Tafel.
+   ════════════════════════════════════════════ */
+:root {
+  --surface: var(--panel);
+  --border: var(--line);
+  --text2: var(--muted);
+  --text3: #9aa3aa;
+  --hover: var(--panel-2);
+  --canvas: #ffffff;
+  --radius-sm: 6px;
+  --shadow-md: var(--shadow);
+  --shadow-lg: 0 10px 30px rgba(20, 24, 28, 0.16);
+  --active-bg: var(--accent-soft);
+}
+.board-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 15, 15, 0.35);
+}
+
+.board-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(76vh, 700px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.board-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.board-dialog h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.board-close {
+  border: 0;
+  background: transparent;
+  color: var(--text2);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.board-close:hover { color: var(--text); }
+
+.board-create {
+  display: flex;
+  gap: 8px;
+}
+
+.board-create input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+}
+
+.board-create button {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.board-create button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.board-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+}
+
+.board-list li:hover { background: var(--hover); }
+
+.board-list li.current {
+  border-color: var(--active-bd);
+  background: var(--active-bg);
+}
+
+.board-open {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.board-name { font-weight: 500; }
+
+.board-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.board-online {
+  font-style: normal;
+  color: #2f9e44;
+  font-weight: 500;
+}
+
+.board-rename {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+}
+
+.board-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.board-list li:hover .board-actions,
+.board-list li.current .board-actions { opacity: 1; }
+
+.board-actions button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text2);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.board-actions button:hover { color: var(--text); }
+.board-actions button.danger:hover { color: var(--danger); border-color: var(--danger); }
+
+.board-empty,
+.board-hint,
+.board-error {
+  color: var(--text2);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.board-error { color: var(--danger); }
+
+.collab-board {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text2);
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ════════════════════════════════════
+   SYMBOLE (components/Icons.jsx)
+
+   Ein Satz Regeln fuer alle kleinen Symbole, die frueher Emojis waren. Sie
+   erben die Schriftfarbe, damit ein Knopf im Hover oder im dunklen Ton
+   mitgeht -- das war der Hauptgrund, die Emojis loszuwerden: ein 📸 bleibt
+   gelb, egal was die Leiste darum macht.
+   ════════════════════════════════════ */
+.l-vis svg,
+.l-del svg,
+.chat-close svg,
+.chat-input button svg,
+.sticky-close svg,
+.prop-label svg,
+.popup-action-icon svg,
+.share-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  display: block;
+}
+.popup-action-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.prop-label svg {
+  width: 16px;
+  height: 16px;
+}
+/* Der Knopf im Chat traegt ein gefuelltes Papierflieger-Zeichen, dort steht
+   der Strich auf der Akzentflaeche. */
+.chat-input button svg {
+  width: 14px;
+  height: 14px;
+}
+/* Die Emojis brachten ihre eigene Groesse mit, die Knoepfe waren deshalb auf
+   font-size eingestellt. Mit einem SVG darin muss der Inhalt zentriert
+   werden, sonst haengt das Zeichen an der Grundlinie. */
+.l-vis,
+.l-del,
+.chat-close,
+.chat-input button,
+.prop-label,
+.share-btn,
+.popup-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.share-btn {
+  gap: 6px;
+}
+.popup-action-icon {
+  width: 16px;
+}
+
+
+/* ════════════════════════════════════════════
+   Konten, Freigaben, Rechtliches (1.0)
+   ════════════════════════════════════════════ */
+.anmeldung {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  background: var(--bg); color: var(--text); overflow: auto; padding: 24px 16px 64px;
+}
+.anmeldung-laedt { color: var(--text2); }
+.anmeldung-karte {
+  width: min(400px, 100%); display: flex; flex-direction: column; gap: 14px;
+  padding: 28px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-md);
+}
+.anmeldung-marke { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
+.anmeldung-karte h1 { font-size: 22px; font-weight: 600; margin: 4px 0 0; }
+.anmeldung-hinweis { color: var(--text2); font-size: 14px; line-height: 1.5; }
+.anmeldung-klein { color: var(--text2); font-size: 13px; text-align: center; }
+.anmeldung-karte label, .konto-form label {
+  display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 500; color: var(--text2);
+}
+.anmeldung-karte small { font-weight: 400; color: var(--text3); }
+.anmeldung-karte input, .konto-form input, .konto-neu input, .konto-neu select, .konto-liste select, .rechts-editor, .freigabe-link input {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--canvas); color: var(--text); font: inherit; font-size: 14px;
+}
+.anmeldung-karte input:focus-visible, .konto-form input:focus-visible, .rechts-editor:focus-visible, .freigabe-link input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent);
+}
+.anmeldung-fehler { color: var(--danger); font-size: 14px; }
+.knopf-primaer {
+  padding: 9px 14px; border: 0; border-radius: var(--radius-sm); background: var(--accent);
+  color: #fff; font: inherit; font-weight: 500; cursor: pointer;
+}
+.knopf-primaer:disabled { opacity: .5; cursor: default; }
+.knopf-link {
+  align-self: center; border: 0; background: transparent; color: var(--accent);
+  font: inherit; font-size: 14px; cursor: pointer; padding: 4px;
+}
+.knopf-link:hover { text-decoration: underline; }
+
+.fuss-links {
+  position: fixed; right: 20px; bottom: 68px; z-index: 5; display: flex; gap: 6px; align-items: center;
+  font-size: 11px; color: var(--text3);
+}
+.fuss-links.fest { left: 50%; transform: translateX(-50%); bottom: 16px; font-size: 12px; }
+.fuss-links button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 2px; }
+.fuss-links button:hover { color: var(--text); text-decoration: underline; }
+body.fullscreen .fuss-links:not(.fest) { display: none; }
+
+.rechts-dialog { width: min(680px, calc(100vw - 32px)); }
+.rechts-text { white-space: pre-wrap; overflow-y: auto; font-size: 14px; line-height: 1.6; color: var(--text); }
+.rechts-editor { width: 100%; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.5; }
+
+.konto-knopf {
+  width: 28px; height: 28px; margin-left: 8px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--accent-soft); color: var(--accent); font: inherit; font-weight: 600; font-size: 13px; cursor: pointer;
+}
+.konto-knopf:hover { background: var(--active-bg); border-color: var(--accent); }
+.nur-lesen-marke {
+  margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  background: var(--accent-soft); color: var(--accent);
+}
+
+.konto-dialog { width: min(720px, calc(100vw - 32px)); max-height: min(86vh, 820px); }
+.konto-reiter { display: flex; gap: 4px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.konto-reiter button {
+  border: 0; background: transparent; color: var(--text2); font: inherit; font-size: 14px;
+  padding: 8px 10px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.konto-reiter button.aktiv { color: var(--text); border-bottom-color: var(--accent); font-weight: 500; }
+.konto-reiter.klein { border-bottom: 0; }
+.konto-reiter.klein button { font-size: 13px; padding: 4px 8px; }
+.konto-inhalt { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; padding-top: 4px; }
+.konto-zeile { display: flex; justify-content: space-between; font-size: 14px; }
+.konto-zeile em { font-style: normal; color: var(--text2); font-size: 13px; }
+.konto-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.konto-form label { flex: 1 1 200px; }
+.konto-form button, .konto-abschnitt > button, .freigabe-link button, .konto-neu button {
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); font: inherit; font-size: 14px; cursor: pointer;
+}
+.konto-form button:hover, .konto-abschnitt > button:hover, .freigabe-link button:hover { background: var(--hover); }
+.konto-form button.danger, .freigabe-link button.danger { color: var(--danger); }
+.konto-abschnitt { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 1.5; }
+.konto-abschnitt h3, .konto-neu h3 { font-size: 15px; font-weight: 600; }
+.konto-abschnitt p { color: var(--text2); }
+.konto-abschnitt.gefahr { border-top: 1px solid var(--border); padding-top: 14px; }
+.konto-abschnitt.gefahr .konto-form { width: 100%; }
+.konto-abschnitt code { font-size: 12px; }
+.konto-neu { display: flex; flex-direction: column; gap: 8px; }
+.konto-neu-felder { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.konto-neu .knopf-primaer { border: 0; color: #fff; background: var(--accent); }
+.konto-liste { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.konto-liste li {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.konto-liste li.gesperrt { opacity: .6; }
+.konto-liste-name { flex: 1 1 200px; display: flex; flex-direction: column; min-width: 0; }
+.konto-liste-name span { font-size: 12px; color: var(--text2); overflow-wrap: anywhere; }
+
+.freigabe-zeile { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); }
+.freigabe-kopf { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.freigabe-kopf span { color: var(--text2); font-size: 13px; }
+.freigabe-link { display: flex; gap: 6px; flex-wrap: wrap; }
+.freigabe-link input { flex: 1 1 240px; min-width: 0; font-size: 13px; }
+.freigabe-zeile > .knopf-primaer { align-self: flex-start; }
+
+@media (max-width: 480px) {
+  .anmeldung-karte { padding: 20px; }
+  .fuss-links:not(.fest) { display: none; }
+}
+
+.konto-liste .board-actions { opacity: 1; }
+body.nur-lesen .a-btn[title^="Rückgängig"],
+body.nur-lesen .a-btn[title^="Wiederholen"],
+body.nur-lesen .a-btn[title="Notiz"],
+body.nur-lesen .a-btn[title="Alles löschen"] { display: none; }
+
+.projekt-titel { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.speicherstand { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
+.speicherstand.gespeichert { color: #15803d; background: #e8f5ec; }
+.speicherstand.fehler { color: var(--danger); background: #fdecec; }
+.projekt-dialog { width: min(640px, calc(100vw - 32px)); }
+.projekt-aktionen { display: flex; flex-wrap: wrap; gap: 8px; }
+.projekt-aktionen button:not(.knopf-primaer) {
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--panel); color: var(--text); font: inherit; cursor: pointer;
+}
+.projekt-aktionen button:not(.knopf-primaer):hover { background: var(--panel-2); }
+.projekt-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+.projekt-liste li { display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: var(--radius-sm); }
+.projekt-liste li:hover, .projekt-liste li.current { background: var(--panel-2); }
+.projekt-liste li .board-actions { opacity: 1; }
+.projekt-oeffnen { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; border: 0; background: transparent; color: var(--text); font: inherit; padding: 6px 8px; cursor: pointer; }
+.projekt-oeffnen span { font-size: 12px; color: var(--muted); }
+.statusbar .fuss-links { position: static; transform: none; margin-left: 12px; font-size: 12px; }
+.konto-knopf { margin-left: 4px; }
+.anmeldung-marke .logo { display: inline-flex; }
+
+/* Geteilte Ansicht: ohne Moebelkatalog, der Plan bekommt die Breite. */
+.workspace.nur-lesen { grid-template-columns: 1fr 264px; }
+@media (max-width: 1100px) {
+  .workspace.nur-lesen { grid-template-columns: 1fr 220px; }
+}
