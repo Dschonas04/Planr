@@ -1,4 +1,4 @@
-# Planr — maßstabsgetreuer Grundriss-Planer
+# Planr — Grundrisse und Häuser maßstabsgetreu planen
 
 Planr ist eine browserbasierte Anwendung, mit der sich eine Wohnung oder ein
 Haus maßstabsgetreu zeichnen und möblieren lässt. Gerechnet wird durchgängig in
@@ -7,6 +7,66 @@ Zentimetern; die 3D-Vorschau baut denselben Plan als begehbares Modell auf.
 Der Editor läuft vollständig im Browser. Dazu kommt ein schlanker Go-Server,
 der Projekte speichert, sie über Links teilbar macht und Grundrisse als SVG
 ausliefert — ohne Anmeldung und ohne Datenbank.
+
+## Häuser planen (ab 2.0)
+
+Seit Version 2 plant Planr ganze Einfamilienhäuser, nicht mehr nur Wohnungen:
+
+- **Geschosse** – Keller, Erdgeschoss, Obergeschoss, Dachgeschoss mit Höhenlage
+  (OKFF), lichter Raumhöhe und Deckenstärke. Das Geschoss darunter liegt grau
+  als Unterlage hinter dem aktiven; ein neues Geschoss übernimmt auf Wunsch die
+  Außenwände.
+- **Wandaufbauten** – Ziegel 36,5/42,5 monolithisch, Kalksandstein mit WDVS,
+  Holzrahmenbau, WU-Beton mit Perimeterdämmung, tragende und nichttragende
+  Innenwände, Trockenbau. Jede Schicht mit Dicke und λ; Planr rechnet den
+  U-Wert nach DIN EN ISO 6946 und vergleicht ihn mit der GEG-Referenz.
+- **Technische Darstellung** – Schichten mit Schraffur nach Baustoff,
+  Gehrungen an Ecken, saubere T-Stöße, Leibungen, Fenster mit Rahmen und
+  Fensterbank, Rohbaumaße und Brüstungshöhe an jeder Öffnung („1,51/1,38⁵
+  BRH 75“), Maße in Architektenschreibweise mit hochgestelltem halben
+  Zentimeter.
+- **Bemaßung** – Außenmaßketten an allen vier Seiten automatisch (Öffnungen
+  und Gesamtmaß), dazu frei gesetzte Maßlinien mit Fang an Wandecken und
+  Leibungen.
+- **Präzise zeichnen** – Länge eintippen und Enter (`450`), mit Winkel
+  (`450;90`); Umschalt zeichnet rechtwinklig; Fang an Endpunkten,
+  Wandmitten, auf Wandachsen und Spurlinien zu vorhandenen Punkten.
+- **Treppen nach DIN 18065** – gerade, L mit Viertelpodest, U mit Halbpodest.
+  Steigungszahl aus der Geschosshöhe, Auftritt nach der Schrittmaßregel,
+  Prüfung von Steigung, Auftritt, Laufbreite und Schrittmaß. Die Deckenöffnung
+  im Geschoss darüber entsteht von selbst.
+- **Dach** – Sattel-, Walm-, Pult- und Flachdach mit Neigung, Kniestock,
+  Überstand und Aufbau. Im Dachgeschoss zeigt der Plan die Linien 1,00 m und
+  2,00 m lichte Höhe.
+- **Wohnfläche nach WoFlV** – Raumstempel mit Name, Nutzung und Bodenbelag;
+  lichte Flächen aus den Wandoberflächen, unter Dachschrägen voll/halb/gar
+  nicht nach lichter Höhe, Balkone und Terrassen zu einem Viertel. Aufstellung
+  als Tabelle, CSV für Excel und im PDF.
+- **Pläne als PDF** – maßstäblich 1:50, 1:100 oder 1:200 auf A4 bis A1 mit
+  Plankopf, Nordpfeil, Maßstabsleiste und Flächenberechnung. Vektor-PDF ohne
+  fremde Bibliothek, gezeichnet vom selben Code wie der Bildschirm.
+- **3D** – das ganze Haus mit Decken, Treppen, Dach und Giebelwänden, die der
+  Dachschräge folgen; oder nur das aktive Geschoss.
+
+Das Beispielhaus (*Projekte → Beispielhaus*) zeigt alles zusammen: Erdgeschoss
+und ausgebautes Dachgeschoss, Satteldach 38°, U-Treppe, rund 119 m² Wohnfläche.
+
+## Mac-Programm
+
+Planr gibt es als Programm für macOS 11 und neuer (Apple Silicon und Intel):
+das `.dmg` hängt an jedem [Release](https://github.com/Dschonas04/Planr/releases).
+
+1. `.dmg` öffnen, **Planr** auf **Programme** ziehen.
+2. Beim ersten Start: Rechtsklick auf Planr → **Öffnen** → **Öffnen**. Das
+   Programm ist nicht bei Apple notarisiert, nur ad-hoc signiert; macOS fragt
+   deshalb einmal nach. Alternativ im Terminal:
+   `xattr -dr com.apple.quarantine /Applications/Planr.app`
+
+Das Programm braucht kein Konto und keinen Server. Projekte liegen unter
+`~/Library/Application Support/Planr`, das Protokoll unter
+`~/Library/Logs/Planr`. Sichern und Öffnen laufen über die Dialoge von macOS.
+Technisch ist es derselbe Go-Server wie im Container, gebunden an
+`127.0.0.1` und mit eingebauter Oberfläche, angezeigt in einem WebKit-Fenster.
 
 ## Funktionen
 
@@ -105,6 +165,8 @@ einzelnen Browser.
 | `PLANR_HINTER_PROXY` | `nein` | `ja`: `X-Forwarded-For`/`-Proto` des Reverse Proxy auswerten |
 | `PLANR_SICHERES_COOKIE` | `nein` | `ja`: Sitzungs-Cookie immer mit `Secure` |
 | `PLANR_METRIKEN` | `nein` | `ja`: Prometheus-Metriken unter `/metrics` |
+| `PLANR_EINZELPLATZ` | `nein` | `ja`: ein lokales Konto, kein Login; Zugang über `/lokal/start?s=<Schlüssel>` (so läuft das Mac-Programm) |
+| `PLANR_SCHLUESSEL` | zufällig | fester Startschlüssel für den Einzelplatz-Betrieb |
 
 ### Im Internet betreiben
 

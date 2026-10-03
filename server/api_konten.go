@@ -32,6 +32,19 @@ func mitKonto(r *http.Request, k *Konto) *http.Request {
 
 func (s *server) mitSitzung(weiter http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.lokal != nil {
+			// Einzelplatz: kein Konto-Login, aber nur mit dem Schluessel aus
+			// dem Startaufruf und nur ueber die Loopback-Adresse.
+			if !s.lokal.hostErlaubt(r.Host) {
+				http.Error(w, "nicht erlaubt", http.StatusMisdirectedRequest)
+				return
+			}
+			if s.lokal.berechtigt(r) {
+				r = mitKonto(r, s.lokal.konto)
+			}
+			weiter.ServeHTTP(w, r)
+			return
+		}
 		if c, err := r.Cookie(sitzungsCookie); err == nil {
 			if k, ok := s.konten.SitzungKonto(c.Value); ok {
 				r = mitKonto(r, k)
@@ -86,6 +99,11 @@ func (s *server) status(w http.ResponseWriter, r *http.Request) {
 		"einrichtung":   anzahl == 0,
 		"registrierung": anzahl == 0 || s.cfg.registrierungOffen,
 		"impressum":     impressum,
+	}
+	if s.lokal != nil {
+		antwort["desktop"] = true
+		antwort["einrichtung"] = false
+		antwort["registrierung"] = false
 	}
 	if k := kontoAus(r); k != nil {
 		antwort["konto"] = k.Sicht()

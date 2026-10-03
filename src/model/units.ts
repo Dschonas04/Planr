@@ -48,3 +48,24 @@ export function snap(value: number, step: number): number {
   if (!step || step <= 0) return value;
   return Math.round(value / step) * step;
 }
+
+/**
+ * Maß in Architektenschreibweise: unter 1 m in cm, darüber in m mit zwei
+ * Stellen; ein halber Zentimeter steht hochgestellt („36⁵“, „4,36⁵“).
+ * Gerundet wird auf 5 mm, feiner baut niemand Rohbau.
+ */
+export function formatArch(cm: Cm): string {
+  const r = Math.round(Math.abs(cm) * 2) / 2;
+  const whole = Math.floor(r);
+  const half = r - whole >= 0.5 ? '⁵' : '';
+  const sign = cm < 0 ? '−' : '';
+  if (r < 100) return `${sign}${whole}${half}`;
+  return `${sign}${(whole / 100).toFixed(2).replace('.', ',')}${half}`;
+}
+
+/** Höhenkote: ±0,00 / +2,75 / −2,60 in Metern. */
+export function formatLevel(cm: Cm): string {
+  if (Math.abs(cm) < 0.5) return '±0,00';
+  const s = (Math.abs(cm) / 100).toFixed(2).replace('.', ',');
+  return cm > 0 ? `+${s}` : `−${s}`;
+}

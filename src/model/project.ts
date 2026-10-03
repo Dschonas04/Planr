@@ -3,9 +3,15 @@
 
 import { add, angleOf, dist, len, normalize, scale, sub } from './geometry.ts';
 import { catalogItem } from './catalog.ts';
-import type { Cm, Level, Opening, Point, Project, Rad, Wall, WallSolid } from './types.ts';
+import { typeThickness, wallType } from './wallTypes.ts';
+import type { Cm, Level, Opening, Point, Project, Rad, Roof, RoomUsage, Wall, WallSolid } from './types.ts';
 
-export const FILE_VERSION = 1;
+/**
+ * Version 2 bringt Geschosse mit Höhenlage, Wandaufbauten, Treppen, Maße,
+ * Raumstempel, Dach und Plankopf. Version-1-Dateien werden beim Einlesen
+ * ergänzt: alle neuen Felder haben Standardwerte.
+ */
+export const FILE_VERSION = 2;
 
 export const DEFAULTS = {
   wallThicknessCm: 24,
@@ -16,6 +22,8 @@ export const DEFAULTS = {
   windowWidthCm: 120,
   windowHeightCm: 140,
   windowSillCm: 90,
+  slabCm: 25,
+  stairWidthCm: 100,
 };
 
 let idCounter = 0;
@@ -24,120 +32,96 @@ export function newId(prefix = 'o'): string {
   return `${prefix}_${Date.now().toString(36)}_${idCounter.toString(36)}`;
 }
 
-export function createLevel(name = 'Erdgeschoss'): Level {
+export function createLevel(name = 'Erdgeschoss', elevationCm: Cm = 0): Level {
   return {
     id: newId('lvl'),
     name,
     heightCm: DEFAULTS.wallHeightCm,
+    elevationCm,
+    slabCm: DEFAULTS.slabCm,
     walls: [],
     openings: [],
     furniture: [],
     labels: [],
+    stairs: [],
+    dimensions: [],
+    rooms: [],
+  };
+}
+
+export function defaultRoof(levelId: string): Roof {
+  return {
+    kind: 'keins',
+    levelId,
+    pitchDeg: 38,
+    overhangCm: 50,
+    kneeWallCm: 100,
+    thicknessCm: 30,
+    ridgeAlongX: true,
+    highSidePositive: true,
   };
 }
 
 export function createProject(name = 'Neues Projekt'): Project {
+  const level = createLevel();
   return {
     version: FILE_VERSION,
     name,
     gridCm: 10,
-    levels: [createLevel()],
+    levels: [level],
+    roof: defaultRoof(level.id),
+    meta: { bauherr: '', adresse: '', planverfasser: '', planNummer: '', nordDeg: 0 },
   };
 }
 
-/** Kleine Beispielwohnung, damit der Editor nicht leer startet. */
-export function demoProject(): Project {
-  const project = createProject('Beispielwohnung');
-  const level = project.levels[0];
-  const t = DEFAULTS.wallThicknessCm;
-  const ti = DEFAULTS.innerWallThicknessCm;
+/** Wand mit Aufbau aus dem Katalog; die Dicke folgt aus den Schichten. */
+export function typedWall(typeId: string, a: Point, b: Point, heightCm: Cm): Wall {
+  const t = wallType(typeId);
+  return {
+    id: newId('w'),
+    a,
+    b,
+    thicknessCm: t ? typeThickness(t) : DEFAULTS.wallThicknessCm,
+    heightCm,
+    typeId: t ? typeId : undefined,
+  };
+}
 
-  const wall = (ax: Cm, ay: Cm, bx: Cm, by: Cm, thickness: Cm = t): Wall => {
-    const w = {
-      id: newId('w'),
-      a: { x: ax, y: ay },
-      b: { x: bx, y: by },
-      thicknessCm: thickness,
-      heightCm: level.heightCm,
-    };
+/**
+ * Beispiel: Einfamilienhaus mit Erdgeschoss und ausgebautem Dachgeschoss,
+ * Satteldach 38°, Kniestock 1,00 m, U-Treppe mit Podest. Außenmaß rund
+ * 10,40 × 8,40 m bei 40 cm Außenwand (Ziegel 36,5 + Putz).
+ */
+export function demoProject(): Project {
+  const project = createProject('Einfamilienhaus Musterweg');
+  project.meta = {
+    bauherr: 'Familie Muster',
+    adresse: 'Musterweg 1, 12345 Musterstadt',
+    planverfasser: '',
+    planNummer: 'EP-01',
+    nordDeg: 0,
+  };
+  const eg = project.levels[0];
+  eg.name = 'Erdgeschoss';
+  const dg = createLevel('Dachgeschoss', eg.elevationCm + eg.heightCm + eg.slabCm);
+  project.levels.push(dg);
+  project.roof = { ...defaultRoof(dg.id), kind: 'sattel', pitchDeg: 38, kneeWallCm: 100, overhangCm: 50 };
+
+  const AW = 'aw-ziegel-365';
+  const IT = 'iw-ks-175';
+  const IN = 'iw-mw-115';
+  const add = (level: Level, typeId: string, ax: Cm, ay: Cm, bx: Cm, by: Cm): Wall => {
+    const w = typedWall(typeId, { x: ax, y: ay }, { x: bx, y: by }, level.heightCm);
     level.walls.push(w);
     return w;
   };
-
-  // Aussenhuelle 900 x 600 cm
-  const top = wall(0, 0, 900, 0);
-  wall(900, 0, 900, 600);
-  const bottom = wall(900, 600, 0, 600);
-  const left = wall(0, 600, 0, 0);
-
-  // Innenwaende: Flur trennt Wohnen (links) von Schlafen/Bad (rechts)
-  const divider = wall(560, 0, 560, 600, ti);
-  const bathWall = wall(560, 360, 900, 360, ti);
-
-  level.openings.push(
-    {
-      id: newId('op'),
-      wallId: bottom.id,
-      offsetCm: 300,
-      widthCm: 100,
-      heightCm: DEFAULTS.doorHeightCm,
-      sillCm: 0,
-      type: 'door',
-      swing: 1,
-    },
-    {
-      id: newId('op'),
-      wallId: top.id,
-      offsetCm: 180,
-      widthCm: 140,
-      heightCm: DEFAULTS.windowHeightCm,
-      sillCm: DEFAULTS.windowSillCm,
-      type: 'window',
-      swing: 1,
-    },
-    {
-      id: newId('op'),
-      wallId: top.id,
-      offsetCm: 700,
-      widthCm: 120,
-      heightCm: DEFAULTS.windowHeightCm,
-      sillCm: DEFAULTS.windowSillCm,
-      type: 'window',
-      swing: 1,
-    },
-    {
-      id: newId('op'),
-      wallId: left.id,
-      offsetCm: 250,
-      widthCm: 120,
-      heightCm: DEFAULTS.windowHeightCm,
-      sillCm: DEFAULTS.windowSillCm,
-      type: 'window',
-      swing: 1,
-    },
-    {
-      id: newId('op'),
-      wallId: divider.id,
-      offsetCm: 120,
-      widthCm: 90,
-      heightCm: DEFAULTS.doorHeightCm,
-      sillCm: 0,
-      type: 'door',
-      swing: 1,
-    },
-    {
-      id: newId('op'),
-      wallId: bathWall.id,
-      offsetCm: 160,
-      widthCm: 80,
-      heightCm: DEFAULTS.doorHeightCm,
-      sillCm: 0,
-      type: 'door',
-      swing: -1,
-    },
-  );
-
-  const place = (catalogId: string, x: Cm, y: Cm, rotationDeg = 0): void => {
+  const opening = (level: Level, wall: Wall, offsetCm: Cm, widthCm: Cm, type: 'door' | 'window', heightCm: Cm, sillCm: Cm, swing: 1 | -1 = 1) => {
+    level.openings.push({ id: newId('op'), wallId: wall.id, offsetCm, widthCm, heightCm, sillCm, type, swing });
+  };
+  const stamp = (level: Level, x: Cm, y: Cm, name: string, floor: string, usage: RoomUsage = 'wohnen') => {
+    level.rooms.push({ id: newId('rs'), x, y, name, usage, floor });
+  };
+  const place = (level: Level, catalogId: string, x: Cm, y: Cm, rotationDeg = 0): void => {
     const item = catalogItem(catalogId);
     if (!item) return;
     level.furniture.push({
@@ -154,17 +138,86 @@ export function demoProject(): Project {
     });
   };
 
-  place('sofa-3', 200, 460, 0);
-  place('coffeetable', 200, 350, 0);
-  place('tvboard', 200, 40, 0);
-  place('table-160', 400, 150, 0);
-  place('chair', 400, 85, 0);
-  place('chair', 400, 215, 180);
-  place('bed-140', 740, 130, 0);
-  place('wardrobe-200', 700, 320, 180);
-  place('shower-90', 620, 420, 0);
-  place('wc', 860, 420, 180);
-  place('basin', 620, 560, 180);
+  // --- Erdgeschoss ---
+  const top = add(eg, AW, 0, 0, 1000, 0);
+  const right = add(eg, AW, 1000, 0, 1000, 800);
+  const bottom = add(eg, AW, 1000, 800, 0, 800);
+  const left = add(eg, AW, 0, 800, 0, 0);
+  const mitte = add(eg, IT, 520, 0, 520, 800);
+  const arbeiten = add(eg, IN, 520, 330, 1000, 330);
+  const nebenraeume = add(eg, IN, 860, 330, 860, 800);
+  add(eg, IN, 860, 560, 1000, 560);
+
+  opening(eg, bottom, 415, 101, 'door', 213.5, 0); // Haustür
+  opening(eg, bottom, 740, 251, 'window', 213.5, 0); // Terrassentür
+  opening(eg, left, 520, 151, 'window', 138.5, 75);
+  opening(eg, top, 260, 151, 'window', 138.5, 75);
+  opening(eg, top, 760, 126, 'window', 138.5, 75);
+  opening(eg, right, 445, 61, 'window', 88.5, 125);
+  opening(eg, right, 680, 76, 'window', 88.5, 125);
+  opening(eg, mitte, 420, 88.5, 'door', 201, 0, -1);
+  opening(eg, arbeiten, 85, 88.5, 'door', 201, 0, 1);
+  opening(eg, nebenraeume, 115, 76, 'door', 201, 0, 1);
+  opening(eg, nebenraeume, 350, 76, 'door', 201, 0, 1);
+
+  eg.stairs.push({
+    id: newId('st'),
+    kind: 'u',
+    x: 802,
+    y: 760,
+    rotationDeg: -90,
+    widthCm: 100,
+    treadCm: 0,
+    turn: 1,
+    splitAt: 0,
+  });
+
+  stamp(eg, 260, 400, 'Wohnen / Essen / Kochen', 'Parkett');
+  stamp(eg, 760, 165, 'Arbeiten', 'Parkett');
+  stamp(eg, 600, 600, 'Diele', 'Fliesen');
+  stamp(eg, 930, 445, 'WC', 'Fliesen');
+  stamp(eg, 930, 680, 'HWR', 'Fliesen', 'nutz');
+
+  place(eg, 'sofa-3', 160, 560, 90);
+  place(eg, 'coffeetable', 280, 560, 90);
+  place(eg, 'table-160', 300, 200, 0);
+  place(eg, 'chair', 270, 140, 0);
+  place(eg, 'chair', 330, 140, 0);
+  place(eg, 'chair', 270, 260, 180);
+  place(eg, 'chair', 330, 260, 180);
+  place(eg, 'desk-140', 760, 60, 0);
+  place(eg, 'wc', 965, 445, 270);
+
+  // --- Dachgeschoss ---
+  const dTop = add(dg, AW, 0, 0, 1000, 0);
+  const dRight = add(dg, AW, 1000, 0, 1000, 800);
+  add(dg, AW, 1000, 800, 0, 800);
+  const dLeft = add(dg, AW, 0, 800, 0, 0);
+  const dMitte = add(dg, IT, 520, 0, 520, 800);
+  add(dg, IN, 0, 565, 520, 565);
+  const dBad = add(dg, IN, 520, 330, 1000, 330);
+  const dAbst = add(dg, IN, 860, 330, 860, 800);
+  void dTop;
+
+  opening(dg, dLeft, 520, 126, 'window', 138.5, 90);
+  opening(dg, dLeft, 120, 101, 'window', 138.5, 90);
+  opening(dg, dRight, 165, 101, 'window', 113.5, 110);
+  opening(dg, dMitte, 470, 88.5, 'door', 201, 0, -1);
+  opening(dg, dMitte, 700, 88.5, 'door', 201, 0, 1);
+  opening(dg, dBad, 120, 88.5, 'door', 201, 0, -1);
+  opening(dg, dAbst, 200, 76, 'door', 201, 0, 1);
+
+  stamp(dg, 260, 280, 'Schlafen', 'Parkett');
+  stamp(dg, 260, 690, 'Kind', 'Parkett');
+  stamp(dg, 760, 165, 'Bad', 'Fliesen');
+  stamp(dg, 640, 560, 'Flur', 'Parkett');
+  stamp(dg, 930, 560, 'Abstellraum', 'Parkett', 'nutz');
+
+  place(dg, 'bed-180', 260, 320, 0);
+  place(dg, 'bed-90', 300, 690, 90);
+  place(dg, 'bathtub', 900, 110, 0);
+  place(dg, 'basin', 640, 60, 0);
+  place(dg, 'wc', 780, 60, 0);
 
   return project;
 }
@@ -279,23 +332,33 @@ export function deserialize(json: string | unknown): Project {
   if (!raw || typeof raw !== 'object') throw new Error('Datei enthält kein Projekt.');
   const levels = Array.isArray(raw.levels) && raw.levels.length ? raw.levels : [createLevel()];
 
-  return {
-    version: FILE_VERSION,
-    name: typeof raw.name === 'string' ? raw.name : 'Importiertes Projekt',
-    gridCm: num(raw.gridCm, 10),
-    levels: levels.map((lvl: any): Level => {
-      const walls: Wall[] = (Array.isArray(lvl.walls) ? lvl.walls : []).map((w: any) => ({
-        id: w.id || newId('w'),
-        a: pt(w.a),
-        b: pt(w.b),
-        thicknessCm: num(w.thicknessCm, DEFAULTS.wallThicknessCm),
-        heightCm: num(w.heightCm, DEFAULTS.wallHeightCm),
-      }));
+  // Version 1 kannte keine Höhenlage: Geschosse liegen dann übereinander,
+  // jeweils um Raumhöhe plus Decke versetzt.
+  let nextElevation = 0;
+  const parsedLevels = levels.map((lvl: any): Level => {
+      const walls: Wall[] = (Array.isArray(lvl.walls) ? lvl.walls : []).map((w: any) => {
+        const wall: Wall = {
+          id: w.id || newId('w'),
+          a: pt(w.a),
+          b: pt(w.b),
+          thicknessCm: num(w.thicknessCm, DEFAULTS.wallThicknessCm),
+          heightCm: num(w.heightCm, DEFAULTS.wallHeightCm),
+        };
+        if (typeof w.typeId === 'string' && wallType(w.typeId)) wall.typeId = w.typeId;
+        if (w.flip === true) wall.flip = true;
+        return wall;
+      });
       const wallIds = new Set(walls.map((w) => w.id));
+      const heightCm = num(lvl.heightCm, DEFAULTS.wallHeightCm);
+      const slabCm = num(lvl.slabCm, DEFAULTS.slabCm);
+      const elevationCm = num(lvl.elevationCm, nextElevation);
+      nextElevation = elevationCm + heightCm + slabCm;
       return {
         id: lvl.id || newId('lvl'),
         name: typeof lvl.name === 'string' ? lvl.name : 'Ebene',
-        heightCm: num(lvl.heightCm, DEFAULTS.wallHeightCm),
+        heightCm,
+        elevationCm,
+        slabCm,
         walls,
         // Oeffnungen ohne zugehoerige Wand wuerden beim Rendern ins Leere zeigen.
         openings: (Array.isArray(lvl.openings) ? lvl.openings : [])
@@ -333,7 +396,62 @@ export function deserialize(json: string | unknown): Project {
               text: typeof l.text === 'string' ? l.text : '',
             }))
           : [],
+        stairs: (Array.isArray(lvl.stairs) ? lvl.stairs : []).map((st: any) => ({
+          id: st.id || newId('st'),
+          kind: st.kind === 'l' || st.kind === 'u' ? st.kind : 'gerade',
+          x: num(st.x, 0),
+          y: num(st.y, 0),
+          rotationDeg: num(st.rotationDeg, 0),
+          widthCm: num(st.widthCm, DEFAULTS.stairWidthCm),
+          treadCm: num(st.treadCm, 0),
+          turn: st.turn === -1 ? -1 : 1,
+          splitAt: Math.max(0, Math.round(num(st.splitAt, 0))),
+        })),
+        dimensions: (Array.isArray(lvl.dimensions) ? lvl.dimensions : []).map((d: any) => ({
+          id: d.id || newId('dm'),
+          a: pt(d.a),
+          b: pt(d.b),
+          offsetCm: num(d.offsetCm, 50),
+        })),
+        rooms: (Array.isArray(lvl.rooms) ? lvl.rooms : []).map((r: any) => ({
+          id: r.id || newId('rs'),
+          x: num(r.x, 0),
+          y: num(r.y, 0),
+          name: typeof r.name === 'string' ? r.name : 'Raum',
+          usage: r.usage === 'aussen' || r.usage === 'nutz' ? r.usage : 'wohnen',
+          floor: typeof r.floor === 'string' ? r.floor : '',
+        })),
       };
-    }),
+    });
+
+  const levelIds = new Set(parsedLevels.map((l: Level) => l.id));
+  const rr: any = raw.roof && typeof raw.roof === 'object' ? raw.roof : {};
+  const fallbackRoof = defaultRoof(parsedLevels[parsedLevels.length - 1].id);
+  const roof: Roof = {
+    kind: ['sattel', 'pult', 'walm', 'flach'].includes(rr.kind) ? rr.kind : 'keins',
+    levelId: levelIds.has(rr.levelId) ? rr.levelId : fallbackRoof.levelId,
+    pitchDeg: num(rr.pitchDeg, fallbackRoof.pitchDeg),
+    overhangCm: num(rr.overhangCm, fallbackRoof.overhangCm),
+    kneeWallCm: num(rr.kneeWallCm, fallbackRoof.kneeWallCm),
+    thicknessCm: num(rr.thicknessCm, fallbackRoof.thicknessCm),
+    ridgeAlongX: rr.ridgeAlongX !== false,
+    highSidePositive: rr.highSidePositive !== false,
+  };
+  const mm: any = raw.meta && typeof raw.meta === 'object' ? raw.meta : {};
+  const str = (v: unknown) => (typeof v === 'string' ? v : '');
+
+  return {
+    version: FILE_VERSION,
+    name: typeof raw.name === 'string' ? raw.name : 'Importiertes Projekt',
+    gridCm: num(raw.gridCm, 10),
+    levels: parsedLevels,
+    roof,
+    meta: {
+      bauherr: str(mm.bauherr),
+      adresse: str(mm.adresse),
+      planverfasser: str(mm.planverfasser),
+      planNummer: str(mm.planNummer),
+      nordDeg: num(mm.nordDeg, 0),
+    },
   };
 }

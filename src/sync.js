@@ -18,7 +18,9 @@ let laeuft = null;
 
 setServerSink(() => {
   const s = getState();
-  if (!s.serverProjekt || s.nurLesen) return;
+  // Im Mac-Programm wird jedes Projekt sofort in der lokalen Ablage
+  // gespeichert -- dort gibt es keinen Grund, nur im Browser zu arbeiten.
+  if (s.nurLesen || (!s.serverProjekt && !s.auth?.desktop)) return;
   setState({ speicherstand: 'geaendert' });
   clearTimeout(timer);
   timer = setTimeout(() => {
@@ -76,14 +78,33 @@ export async function letztesProjektOeffnen() {
   try {
     id = localStorage.getItem(LETZTES);
   } catch {
-    return;
+    id = null;
   }
-  if (!id) return;
-  try {
-    await projektOeffnen(id);
-  } catch {
-    vergessen();
+  if (id) {
+    try {
+      await projektOeffnen(id);
+      return true;
+    } catch {
+      vergessen();
+    }
   }
+  // Mac-Programm ohne gemerktes Projekt: das neueste aus der Ablage nehmen,
+  // sonst das aktuelle (Beispielhaus) als erstes Projekt anlegen.
+  if (getState().auth?.desktop) {
+    try {
+      const liste = await api('/api/projects');
+      if (liste?.length) {
+        const neuestes = [...liste].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        await projektOeffnen(neuestes.id);
+      } else {
+        await jetztSpeichern();
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 export function vergessen() {

@@ -2,6 +2,8 @@
 // SVG als eigener Vektor-Pfad (fuer Druck und Weiterverarbeitung in CAD).
 
 import { COLORS, drawScene, wallQuad } from './canvas2d/render.js';
+import { deriveLevel } from './canvas2d/derive.js';
+import { dateiSpeichern } from './datei.js';
 import { findRooms, polygonCentroid, rectCorners } from './model/geometry.ts';
 import { formatArea, formatLength } from './model/units.ts';
 import {
@@ -32,15 +34,7 @@ export function levelExtent(level) {
 }
 
 function download(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  // Erst nach dem Klick freigeben, sonst bricht der Download in Firefox ab.
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  dateiSpeichern(filename, blob);
 }
 
 const safeName = (name) => (name || 'plan').replace(/[^\w\-]+/g, '_').toLowerCase();
@@ -49,8 +43,14 @@ export function exportJSON(project) {
   download(new Blob([serialize(project)], { type: 'application/json' }), `${safeName(project.name)}.planr.json`);
 }
 
-export function exportPNG(project, level, settings, maxPx = 2400) {
+export function exportPNG(project, levelIndex, settings, maxPx = 3000) {
+  const level = project.levels[levelIndex];
   const ext = levelExtent(level);
+  // Platz für die Außenmaßketten.
+  ext.minX -= 150;
+  ext.minY -= 150;
+  ext.maxX += 150;
+  ext.maxY += 150;
   const wCm = ext.maxX - ext.minX;
   const hCm = ext.maxY - ext.minY;
   const zoom = Math.min(maxPx / wCm, maxPx / hCm, 4);
@@ -64,18 +64,18 @@ export function exportPNG(project, level, settings, maxPx = 2400) {
 
   drawScene(ctx, {
     level,
-    view: { zoom, panX: -ext.minX * zoom, panY: -ext.minY * zoom },
-    settings: { ...settings, showGrid: false },
+    derived: deriveLevel(project, levelIndex),
+    view: { zoom, panX: -ext.minX * zoom, panY: -ext.minY * zoom, print: true, lineScale: 1.2, textScale: 1.3 },
+    settings: { ...settings, showGrid: false, showUnderlay: false },
     selection: null,
     draft: null,
     snapPoint: null,
-    rooms: findRooms(level.walls.map((w) => ({ a: w.a, b: w.b }))),
     canvasSize: { width, height },
     dpr: 1,
   });
 
   canvas.toBlob((blob) => {
-    if (blob) download(blob, `${safeName(project.name)}.png`);
+    if (blob) download(blob, `${safeName(project.name)}-${safeName(level.name)}.png`);
   }, 'image/png');
 }
 

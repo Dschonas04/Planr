@@ -218,6 +218,16 @@ export function nodeSegments(segments: Segment[], tol = 1): Segment[] {
  * @returns {Array<{points: Array<{x,y}>, area: number}>} Raumpolygone, cm bzw. cm2
  */
 export function findRooms(segments: Segment[], tol = 1): Room[] {
+  // Nur Flaechen mit positivem Umlaufsinn sind Innenraeume; die Aussenhuelle
+  // laeuft andersherum und wird hier verworfen.
+  return findFaces(segments, tol).filter((f) => f.area > 100);
+}
+
+/**
+ * Alle Flaechen des Wandnetzes, auch die Aussenhuellen (negativer
+ * Umlaufsinn). Aus diesen entsteht der Gebaeudeumriss.
+ */
+export function findFaces(segments: Segment[], tol = 1): Room[] {
   const noded = nodeSegments(segments, tol);
   const nodes: Point[] = [];
   const keyOf = (p: Point) => {
@@ -294,9 +304,69 @@ export function findRooms(segments: Segment[], tol = 1): Room[] {
     if (cycle.length < 3) continue;
     const points = cycle.map((i) => ({ ...nodes[halfEdges[i].from] }));
     const area = polygonArea(points);
-    // Nur Flaechen mit positivem Umlaufsinn sind Innenraeume; die Aussenhuelle
-    // laeuft andersherum und wird hier verworfen.
-    if (area > 100) rooms.push({ points, area });
+    if (Math.abs(area) > 100) rooms.push({ points, area });
   }
   return rooms;
+}
+
+/** Schnittpunkt zweier unendlicher Geraden (Punkt + Richtung) oder null. */
+export function lineIntersection(p: Point, d: Point, q: Point, e: Point): Point | null {
+  const denom = cross(d, e);
+  if (Math.abs(denom) < 1e-9) return null;
+  const t = cross(sub(q, p), e) / denom;
+  return add(p, scale(d, t));
+}
+
+/**
+ * Schneidet ein Polygon an der Halbebene a*x + b*y + c >= 0 ab
+ * (Sutherland-Hodgman, eine Kante). Das Ergebnis kann leer sein.
+ */
+export function clipHalfPlane(points: Point[], a: number, b: number, c: number): Point[] {
+  const out: Point[] = [];
+  const f = (p: Point) => a * p.x + b * p.y + c;
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const q = points[(i + 1) % points.length];
+    const fp = f(p);
+    const fq = f(q);
+    if (fp >= 0) out.push(p);
+    if ((fp >= 0) !== (fq >= 0)) {
+      const t = fp / (fp - fq);
+      out.push({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t });
+    }
+  }
+  return out;
+}
+
+/**
+ * Verschiebt jede Kante eines Polygons um ihren eigenen Abstand ins Innere
+ * (negativ: nach aussen) und schneidet die neuen Kanten miteinander. So
+ * entsteht aus den Wandachsen eines Raums seine lichte Flaeche, auch wenn
+ * die Waende unterschiedlich dick sind.
+ */
+export function offsetPolygonEdges(points: Point[], distances: number[]): Point[] {
+  const n = points.length;
+  if (n < 3) return points.map((p) => ({ ...p }));
+  const sign = polygonArea(points) >= 0 ? 1 : -1;
+  const lines = points.map((p, i) => {
+    const q = points[(i + 1) % n];
+    const d = normalize(sub(q, p));
+    const nrm = scale(normal(d), sign * distances[i]);
+    return { p: add(p, nrm), d };
+  });
+  const out: Point[] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = lines[(i - 1 + n) % n];
+    const cur = lines[i];
+    const x = lineIntersection(prev.p, prev.d, cur.p, cur.d);
+    // Zwei Kanten in einer Flucht: kein Knick, der Punkt liegt auf der Kante.
+    out.push(x && dist(x, points[i]) < 10 * (Math.abs(distances[i]) + Math.abs(distances[(i - 1 + n) % n]) + 1) ? x : cur.p);
+  }
+  return out;
+}
+
+export function polygonPerimeter(points: Point[]): number {
+  let l = 0;
+  for (let i = 0; i < points.length; i++) l += dist(points[i], points[(i + 1) % points.length]);
+  return l;
 }

@@ -1,6 +1,6 @@
 {
   "name": "planr",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "description": "Massstabsgetreuer Grundriss-Planer mit 3D-Vorschau",

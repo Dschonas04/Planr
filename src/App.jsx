@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { geteiltOeffnen, jetztSpeichern, letztesProjektOeffnen } from './sync.js';
 import Anmeldung from './components/Anmeldung.jsx';
@@ -12,6 +12,11 @@ import PropertiesPanel from './components/PropertiesPanel.jsx';
 import PlanCanvas from './components/PlanCanvas.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import { IconLogo } from './components/icons.jsx';
+import FlaechenDialog from './components/FlaechenDialog.jsx';
+import PdfDialog from './components/PdfDialog.jsx';
+import Bestaetigung from './components/Bestaetigung.jsx';
+import { applyNumInput, finishDraftRef } from './canvas2d/events.js';
+import { dateiOeffnen } from './datei.js';
 
 // three.js macht den Grossteil des Bundles aus und wird erst gebraucht,
 // wenn jemand die 3D-Ansicht oeffnet.
@@ -21,17 +26,19 @@ import { deserialize } from './model/project.ts';
 import {
   activeLevel,
   commit,
+  einpassen,
   getState,
-  loadDemo,
+  istDesktop,
   loadProject,
   redo,
+  removeSelection,
   setState,
   toast,
   undo,
   useStore,
 } from './store.js';
 
-const TOOL_KEYS = { v: 'select', w: 'wall', d: 'door', f: 'window', h: 'pan' };
+const TOOL_KEYS = { v: 'select', w: 'wall', d: 'door', f: 'window', t: 'stair', m: 'dimension', n: 'room', h: 'pan' };
 
 const GETEILT = /^#\/geteilt\/([0-9a-f]{32})$/;
 
@@ -44,7 +51,6 @@ const SPEICHERSTAND = {
 
 export default function App() {
   const state = useStore();
-  const fileRef = useRef(null);
   const geteiltToken = (location.hash.match(GETEILT) || [])[1] || null;
   const [geteiltFehler, setGeteiltFehler] = useState('');
   const kontoId = state.auth?.konto?.id;
@@ -80,28 +86,52 @@ export default function App() {
         else undo();
         return;
       }
+      if (mod && ev.key.toLowerCase() === 's') {
+        ev.preventDefault();
+        if (getState().serverProjekt) jetztSpeichern().catch(() => {});
+        else setState({ projekteOffen: true });
+        return;
+      }
+      if (mod && ev.key.toLowerCase() === 'p') {
+        ev.preventDefault();
+        setState({ pdfOffen: true });
+        return;
+      }
       if (mod) return;
 
+      // Zahleneingabe beim Wandzeichnen: Ziffern, Komma, Strichpunkt sammeln.
+      const s = getState();
+      if (s.tool === 'wall' && s.draft?.points.length) {
+        if (/^[0-9.,;<-]$/.test(ev.key)) {
+          ev.preventDefault();
+          setState({ numInput: s.numInput + ev.key });
+          return;
+        }
+        if (ev.key === 'Backspace' && s.numInput) {
+          ev.preventDefault();
+          setState({ numInput: s.numInput.slice(0, -1) });
+          return;
+        }
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          if (s.numInput) applyNumInput();
+          else finishDraftRef.current?.();
+          return;
+        }
+        if (ev.key === 'Escape' && s.numInput) {
+          setState({ numInput: '' });
+          return;
+        }
+      }
+
       if (ev.key === 'Escape') {
-        setState({ draft: null, selection: null, pendingCatalogId: null, tool: 'select' });
+        setState({ draft: null, dimDraft: null, selection: null, pendingCatalogId: null, tool: 'select', numInput: '', guides: [] });
         return;
       }
       if (ev.key === 'Delete' || ev.key === 'Backspace') {
-        const sel = state.selection;
-        if (!sel) return;
+        if (!state.selection) return;
         ev.preventDefault();
-        commit((project) => {
-          const lvl = project.levels[state.activeLevel];
-          if (sel.kind === 'wall') {
-            lvl.walls = lvl.walls.filter((w) => w.id !== sel.id);
-            lvl.openings = lvl.openings.filter((o) => o.wallId !== sel.id);
-          } else if (sel.kind === 'opening') {
-            lvl.openings = lvl.openings.filter((o) => o.id !== sel.id);
-          } else if (sel.kind === 'furniture') {
-            lvl.furniture = lvl.furniture.filter((f) => f.id !== sel.id);
-          }
-        });
-        setState({ selection: null });
+        removeSelection();
         return;
       }
       if (ev.key.toLowerCase() === 'r' && state.selection?.kind === 'furniture') {
@@ -110,6 +140,19 @@ export default function App() {
           if (!f) return false;
           f.rotationDeg = (f.rotationDeg + (ev.shiftKey ? -15 : 15) + 360) % 360;
         });
+        return;
+      }
+      if (ev.key.toLowerCase() === 'r' && state.selection?.kind === 'stair') {
+        commit((project) => {
+          const st = project.levels[state.activeLevel].stairs.find((x) => x.id === state.selection.id);
+          if (!st) return false;
+          st.rotationDeg = (st.rotationDeg + (ev.shiftKey ? -90 : 90) + 360) % 360;
+        });
+        return;
+      }
+      if (ev.key === '0') {
+        const c = document.querySelector('.plan-canvas')?.getBoundingClientRect();
+        if (c) einpassen(c.width, c.height);
         return;
       }
       if (ev.key === '3') {
@@ -125,19 +168,20 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [state.selection, state.activeLevel, state.view3d]);
 
-  const openFile = async (ev) => {
-    const file = ev.target.files?.[0];
-    ev.target.value = '';
-    if (!file) return;
+  const openFile = async () => {
     try {
-      loadProject(deserialize(await file.text()));
-      toast(`„${file.name}" geladen.`);
+      const datei = await dateiOeffnen(['planr', 'json']);
+      if (!datei) return;
+      loadProject(deserialize(datei.text));
+      setState({ serverProjekt: null, speicherstand: null });
+      toast(`„${datei.name}" geladen.`);
     } catch (err) {
       toast(`Datei konnte nicht gelesen werden: ${err.message}`, 'error');
     }
   };
 
-  const level = activeLevel(state);
+  const levelIndex = Math.min(state.activeLevel, state.project.levels.length - 1);
+  const desktop = istDesktop(state);
 
   if (geteiltToken && geteiltFehler) {
     return (
@@ -185,7 +229,7 @@ export default function App() {
         ) : (
           <span className="projekt-titel">
             <span className="projekt-name">{state.serverProjekt ? state.serverProjekt.name : state.project.name}</span>
-            {!state.serverProjekt && <span className="speicherstand lokal">nur in diesem Browser</span>}
+            {!state.serverProjekt && <span className="speicherstand lokal">{desktop ? 'noch nicht gespeichert' : 'nur in diesem Browser'}</span>}
             {state.speicherstand && (
               <span className={`speicherstand ${state.speicherstand}`}>{SPEICHERSTAND[state.speicherstand]}</span>
             )}
@@ -201,28 +245,27 @@ export default function App() {
                 Speichern
               </button>
               <button type="button" className="btn" onClick={() => setState({ teilenOffen: true })}>
-                Teilen
+                {desktop ? 'Exportieren' : 'Teilen'}
+              </button>
+              <button type="button" className="btn" onClick={() => setState({ pdfOffen: true })} title="Maßstäblicher Plan mit Plankopf (⌘P)">
+                PDF
               </button>
               <span className="divider" />
-              <button type="button" className="btn" onClick={loadDemo} title="Beispielwohnung in dieses Projekt laden">
-                Beispiel
+              <button type="button" className="btn" onClick={openFile} title="Datei öffnen, ohne sie zu speichern">
+                Öffnen
               </button>
-              <button type="button" className="btn" onClick={() => fileRef.current?.click()} title="Datei nur im Browser öffnen">
-                Datei öffnen
-              </button>
-              <button type="button" className="btn" onClick={() => exportJSON(state.project)} title="Als Datei herunterladen">
-                JSON
+              <button type="button" className="btn" onClick={() => exportJSON(state.project)} title="Als .planr-Datei sichern">
+                Sichern
               </button>
             </>
           )}
           <span className="divider" />
-          <button type="button" className="btn" onClick={() => exportPNG(state.project, level, state.settings)}>
+          <button type="button" className="btn" onClick={() => exportPNG(state.project, levelIndex, state.settings)}>
             PNG
           </button>
-          <button type="button" className="btn" onClick={() => exportSVG(state.project, level, state.settings)}>
+          <button type="button" className="btn" onClick={() => exportSVG(state.project, state.project.levels[levelIndex], state.settings)}>
             SVG
           </button>
-          <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={openFile} />
           {state.auth?.konto && (
             <button
               type="button"
@@ -258,7 +301,10 @@ export default function App() {
       <ProjektDialog />
       <TeilenDialog />
       <KontoDialog />
-      <Rechtliches />
+      <FlaechenDialog />
+      <PdfDialog />
+      <Bestaetigung />
+      {!desktop && <Rechtliches />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { newProject, setState, toast, useStore } from '../store.js';
+import { bestaetigen, istDesktop, loadDemo, newProject, setState, toast, useStore } from '../store.js';
+import { dateiOeffnen } from '../datei.js';
 import { jetztSpeichern, projektOeffnen, vergessen } from '../sync.js';
 
 /**
@@ -20,7 +21,8 @@ export default function ProjektDialog() {
   const projektName = useStore((s) => s.project.name);
   const [liste, setListe] = useState(null);
   const [fehler, setFehler] = useState('');
-  const dateiRef = useRef(null);
+  const desktop = useStore((s) => istDesktop(s));
+  const ablage = desktop ? 'auf diesem Mac' : 'auf dem Server';
 
   const laden = useCallback(() => {
     api('/api/projects')
@@ -50,7 +52,7 @@ export default function ProjektDialog() {
   async function aktuellesSpeichern() {
     try {
       await jetztSpeichern();
-      toast('Auf dem Server gespeichert.');
+      toast(desktop ? 'Gespeichert.' : 'Auf dem Server gespeichert.');
       laden();
     } catch (e) {
       setFehler(e.message);
@@ -58,7 +60,7 @@ export default function ProjektDialog() {
   }
 
   async function loeschen(p) {
-    if (!window.confirm(`Projekt „${p.name}“ endgültig löschen?`)) return;
+    if (!(await bestaetigen(`Projekt „${p.name}“ endgültig löschen?`, 'Löschen'))) return;
     try {
       await api(`/api/projects/${p.id}`, { methode: 'DELETE' });
       if (aktuell?.id === p.id) {
@@ -71,17 +73,16 @@ export default function ProjektDialog() {
     }
   }
 
-  async function importieren(ev) {
-    const datei = ev.target.files?.[0];
-    ev.target.value = '';
-    if (!datei) return;
+  async function importieren() {
     setFehler('');
     try {
-      const res = await fetch(`/api/import?name=${encodeURIComponent(datei.name.replace(/\.(planr\.)?json$/i, ''))}`, {
+      const datei = await dateiOeffnen(['planr', 'json']);
+      if (!datei) return;
+      const res = await fetch(`/api/import?name=${encodeURIComponent(datei.name.replace(/\.(planr\.)?json$|\.planr$/i, ''))}`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'X-Requested-With': 'planr', 'Content-Type': 'application/json' },
-        body: await datei.text(),
+        body: datei.text,
       });
       const antwort = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -109,7 +110,7 @@ export default function ProjektDialog() {
         <div className="projekt-aktionen">
           {!aktuell && (
             <button type="button" className="knopf-primaer" onClick={aktuellesSpeichern}>
-              „{projektName}“ auf dem Server speichern
+              „{projektName}“ {ablage} speichern
             </button>
           )}
           <button
@@ -123,10 +124,20 @@ export default function ProjektDialog() {
           >
             Neues Projekt
           </button>
-          <button type="button" onClick={() => dateiRef.current?.click()}>
+          <button
+            type="button"
+            onClick={() => {
+              loadDemo();
+              setState({ serverProjekt: null, speicherstand: null });
+              vergessen();
+              schliessen();
+            }}
+          >
+            Beispielhaus
+          </button>
+          <button type="button" onClick={importieren}>
             .planr importieren
           </button>
-          <input ref={dateiRef} type="file" accept=".json,.planr,application/json" hidden onChange={importieren} />
         </div>
 
         {fehler && <p className="board-error">{fehler}</p>}
@@ -151,7 +162,7 @@ export default function ProjektDialog() {
                 </span>
               </li>
             ))}
-            {!liste.length && <li className="board-empty">Noch keine Projekte auf dem Server.</li>}
+            {!liste.length && <li className="board-empty">Noch keine Projekte {ablage}.</li>}
           </ul>
         )}
       </div>

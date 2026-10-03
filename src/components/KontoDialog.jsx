@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, herunterladen } from '../api.js';
-import { setState, toast, useStore } from '../store.js';
+import { api } from '../api.js';
+import { serverDateiSpeichern } from '../datei.js';
+import { bestaetigen, setState, toast, useStore } from '../store.js';
 
 /**
  * Das eigene Konto und, für Administratoren, die Verwaltung der Instanz.
@@ -136,7 +137,7 @@ function MeineDaten({ konto }) {
 
   async function loeschen(e) {
     e.preventDefault();
-    if (!window.confirm('Konto und alle eigenen Projekte endgültig löschen? Das lässt sich nicht rückgängig machen.')) return;
+    if (!(await bestaetigen('Konto und alle eigenen Projekte endgültig löschen? Das lässt sich nicht rückgängig machen.', 'Endgültig löschen'))) return;
     try {
       await api('/api/konto', { methode: 'DELETE', daten: { passwort } });
       window.location.href = '/';
@@ -150,7 +151,7 @@ function MeineDaten({ konto }) {
       <section className="konto-abschnitt">
         <h3>Daten herunterladen</h3>
         <p>Deine Kontoangaben und alle Projekte, die dir gehören, samt Grundriss als eine JSON-Datei.</p>
-        <button type="button" onClick={() => herunterladen('/api/konto/export')}>
+        <button type="button" onClick={() => serverDateiSpeichern('/api/konto/export', 'planr-daten.json')}>
           Herunterladen
         </button>
       </section>
@@ -352,7 +353,7 @@ function Sicherung() {
         Zum Wiederherstellen den Dienst stoppen, das Archiv in das Datenverzeichnis entpacken (Volume <code>/data</code>)
         und den Dienst starten.
       </p>
-      <button type="button" className="knopf-primaer" onClick={() => herunterladen('/api/admin/sicherung')}>
+      <button type="button" className="knopf-primaer" onClick={() => serverDateiSpeichern('/api/admin/sicherung', 'planr-sicherung.tar.gz')}>
         Sicherung herunterladen
       </button>
     </section>

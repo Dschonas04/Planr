@@ -1,14 +1,16 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { buildLevelGroup, disposeGroup, levelBounds } from '../three/scene.js';
-import { activeLevel, useStore } from '../store.js';
+import { buildHouseGroup, disposeGroup, houseBounds } from '../three/scene.js';
+import { setState, useStore } from '../store.js';
 
 export default function View3D() {
   const mountRef = useRef(null);
   const ctxRef = useRef(null);
   const state = useStore();
-  const level = activeLevel(state);
+  const project = state.project;
+  const only = state.settings.only3dLevel ? Math.min(state.activeLevel, project.levels.length - 1) : null;
+  const showRoof = state.settings.showRoof;
 
   // Renderer, Kamera und Licht leben ueber die gesamte Lebensdauer der
   // Ansicht -- nur die Geometrie wird bei Planaenderungen ausgetauscht.
@@ -19,7 +21,7 @@ export default function View3D() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xdfe6ea);
 
-    const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 500);
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 800);
     camera.position.set(10, 10, 12);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -34,7 +36,7 @@ export default function View3D() {
 
     // Innenraeume liegen weitgehend im Schlagschatten der Waende -- deshalb
     // viel Umgebungslicht und eine eher zurueckhaltende Sonne.
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x9c9384, 1.35));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x9c9384, 1.75));
     const sun = new THREE.DirectionalLight(0xffffff, 0.8);
     sun.position.set(12, 20, 8);
     sun.castShadow = true;
@@ -47,12 +49,13 @@ export default function View3D() {
     sun.shadow.camera.bottom = -25;
     scene.add(sun);
 
+    // Gelände 30 cm unter dem Erdgeschossfußboden.
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(200, 200),
+      new THREE.PlaneGeometry(300, 300),
       new THREE.MeshLambertMaterial({ color: 0xb9c3ab }),
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.02;
+    ground.position.y = -0.3;
     ground.receiveShadow = true;
     scene.add(ground);
 
@@ -75,7 +78,7 @@ export default function View3D() {
     resize();
     animate();
 
-    ctxRef.current = { scene, camera, controls, renderer, group: null, framed: false };
+    ctxRef.current = { scene, camera, controls, renderer, group: null, framed: false, ground };
 
     return () => {
       cancelAnimationFrame(raf);
@@ -95,19 +98,35 @@ export default function View3D() {
       ctx.scene.remove(ctx.group);
       disposeGroup(ctx.group);
     }
-    ctx.group = buildLevelGroup(level);
+    ctx.group = buildHouseGroup(project, { only, showRoof });
     ctx.scene.add(ctx.group);
+    // Ein Keller allein liegt unter dem Gelände -- dann das Gelände ausblenden.
+    ctx.ground.visible = only == null || project.levels[only].elevationCm >= -1;
 
     // Kamera nur beim ersten Aufbau ausrichten, sonst springt die Ansicht
     // bei jeder Aenderung zurueck.
     if (!ctx.framed) {
-      const { center, radius } = levelBounds(level);
+      const { center, radius } = houseBounds(project);
       ctx.controls.target.copy(center);
-      ctx.camera.position.set(center.x + radius, radius * 0.9, center.z + radius);
+      ctx.camera.position.set(center.x + radius * 1.5, center.y + radius * 1.1, center.z + radius * 1.7);
       ctx.camera.updateProjectionMatrix();
       ctx.framed = true;
     }
-  }, [level]);
+  }, [project, only, showRoof]);
 
-  return <div className="view3d" ref={mountRef} />;
+  const toggle = (key) => (e) => setState({ settings: { ...state.settings, [key]: e.target.checked } });
+  return (
+    <div className="view3d" ref={mountRef}>
+      <div className="view3d-optionen">
+        <label className="toggle">
+          <input type="checkbox" checked={state.settings.only3dLevel} onChange={toggle('only3dLevel')} />
+          Nur aktuelles Geschoss
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={state.settings.showRoof} onChange={toggle('showRoof')} disabled={state.settings.only3dLevel} />
+          Dach
+        </label>
+      </div>
+    </div>
+  );
 }

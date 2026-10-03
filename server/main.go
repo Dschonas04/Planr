@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -32,11 +33,14 @@ const maxPlanBytes = 12 << 20 // Grundrisse mit vielen Moebeln bleiben darunter
 
 type config struct {
 	port, daten, static string
-	registrierungOffen  bool
-	hinterProxy         bool
-	sicheresCookie      bool
-	metriken            bool
-	sitzungTage         int
+	// staticFS ersetzt das Verzeichnis static, wenn die Oberflaeche ins
+	// Programm eingebettet ist (Desktop-Fassung).
+	staticFS           fs.FS
+	registrierungOffen bool
+	hinterProxy        bool
+	sicheresCookie     bool
+	metriken           bool
+	sitzungTage        int
 }
 
 func ladeConfig() config {
@@ -63,6 +67,7 @@ func ja(wert, erwartet string) bool {
 
 type server struct {
 	cfg           config
+	lokal         *einzelplatz
 	store         *Store
 	konten        *Konten
 	apiBremse     *Bremse
@@ -90,6 +95,12 @@ func neuerServer(cfg config) (*server, error) {
 }
 
 func main() {
+	// Die Desktop-Fassung (Build-Tag "desktop") bringt ihr eigenes Fenster
+	// mit und startet den Server selbst.
+	if desktopStart != nil {
+		desktopStart()
+		return
+	}
 	cfg := ladeConfig()
 	s, err := neuerServer(cfg)
 	if err != nil {
@@ -101,6 +112,13 @@ func main() {
 		Handler:           s.routen(),
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      60 * time.Second,
+	}
+
+	if ja(env("PLANR_EINZELPLATZ", "nein"), "ja") {
+		if err := s.einzelplatzEinrichten(env("PLANR_SCHLUESSEL", "")); err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Einzelplatz: Start ueber http://127.0.0.1:%s/lokal/start?s=%s", cfg.port, s.lokal.schluessel)
 	}
 
 	go func() {
@@ -147,6 +165,9 @@ func (s *server) routen() http.Handler {
 	mux.HandleFunc("/api/shared/", s.shared)
 	mux.HandleFunc("/api/import", s.importFile)
 	mux.HandleFunc("/api/validate", s.validate)
+	mux.HandleFunc("/lokal/start", s.lokalStart)
+	mux.HandleFunc("/api/desktop/speichern", s.desktopSpeichern)
+	mux.HandleFunc("/api/desktop/oeffnen", s.desktopOeffnen)
 	mux.Handle("/", s.spa())
 	return s.schutz(s.mitSitzung(mux))
 }
@@ -159,10 +180,14 @@ func env(key, fallback string) string {
 }
 
 func (s *server) spa() http.Handler {
-	files := http.FileServer(http.Dir(s.cfg.static))
+	root := s.cfg.staticFS
+	if root == nil {
+		root = os.DirFS(s.cfg.static)
+	}
+	files := http.FileServerFS(root)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Join(s.cfg.static, filepath.Clean("/"+r.URL.Path))
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+		name := strings.TrimPrefix(filepath.ToSlash(filepath.Clean("/"+r.URL.Path)), "/")
+		if info, err := fs.Stat(root, name); err == nil && !info.IsDir() && name != "" {
 			if strings.HasPrefix(r.URL.Path, "/assets/") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			}
@@ -170,7 +195,7 @@ func (s *server) spa() http.Handler {
 			return
 		}
 		w.Header().Set("Cache-Control", "no-cache")
-		http.ServeFile(w, r, filepath.Join(s.cfg.static, "index.html"))
+		http.ServeFileFS(w, r, root, "index.html")
 	})
 }
 

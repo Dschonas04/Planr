@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { api, herunterladen } from '../api.js';
-import { setState, toast, useStore } from '../store.js';
+import { api } from '../api.js';
+import { serverDateiSpeichern } from '../datei.js';
+import { istDesktop, setState, toast, useStore } from '../store.js';
 import { jetztSpeichern } from '../sync.js';
 
 /**
@@ -13,6 +14,7 @@ import { jetztSpeichern } from '../sync.js';
 export default function TeilenDialog() {
   const offen = useStore((s) => s.teilenOffen);
   const projekt = useStore((s) => s.serverProjekt);
+  const desktop = useStore((s) => istDesktop(s));
   const [token, setToken] = useState(null);
   const [fehler, setFehler] = useState('');
   const [busy, setBusy] = useState(false);
@@ -78,21 +80,22 @@ export default function TeilenDialog() {
     // Vor dem Export den aktuellen Stand schreiben, sonst exportiert der
     // Server die Fassung von vor zwei Sekunden.
     await jetztSpeichern().catch(() => {});
-    herunterladen(`/api/projects/${projekt.id}/${format}`);
+    const endung = format === 'planr' ? 'planr' : format;
+    await serverDateiSpeichern(`/api/projects/${projekt.id}/${format}`, `${projekt.name || 'plan'}.${endung}`);
   }
 
   return (
     <div className="board-backdrop" onPointerDown={schliessen}>
       <div className="board-dialog" onPointerDown={(e) => e.stopPropagation()} role="dialog" aria-label="Teilen">
         <header>
-          <h2>„{projekt.name}“ teilen</h2>
+          <h2>„{projekt.name}“ {desktop ? 'exportieren' : 'teilen'}</h2>
           <button type="button" className="board-close" onClick={schliessen} title="Schließen">
             ×
           </button>
         </header>
         {fehler && <p className="board-error">{fehler}</p>}
 
-        <section className="freigabe-zeile">
+        {!desktop && <section className="freigabe-zeile">
           <div className="freigabe-kopf">
             <strong>Link zum Ansehen</strong>
             <span>Zeigt den Grundriss samt 3D-Ansicht, ohne Anmeldung und ohne Änderungsmöglichkeit.</span>
@@ -122,14 +125,15 @@ export default function TeilenDialog() {
               Link erstellen
             </button>
           )}
-        </section>
+        </section>}
 
         <section className="freigabe-zeile">
           <div className="freigabe-kopf">
             <strong>Exportieren</strong>
-            <span>Vom Server berechnet: DXF für CAD, PNG in 2000 px, SVG in Millimetern, .planr zum Weitergeben.</span>
+            <span>PDF maßstäblich mit Plankopf, DXF für CAD, PNG in 2000 px, SVG in Millimetern, .planr zum Weitergeben.</span>
           </div>
           <div className="freigabe-link">
+            <button type="button" onClick={() => setState({ teilenOffen: false, pdfOffen: true })}>PDF-Plan</button>
             <button type="button" onClick={() => exportieren('dxf')}>DXF</button>
             <button type="button" onClick={() => exportieren('png')}>PNG</button>
             <button type="button" onClick={() => exportieren('svg')}>SVG</button>

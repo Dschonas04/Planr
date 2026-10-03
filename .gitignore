@@ -8,3 +8,6 @@ dist/
 # Go
 server/planr
 data/
+
+# eingebettete Oberflaeche der Desktop-Fassung (CI kopiert dist hierher)
+server/web/

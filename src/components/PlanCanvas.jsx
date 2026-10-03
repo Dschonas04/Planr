@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { drawScene } from '../canvas2d/render.js';
+import { deriveLevel } from '../canvas2d/derive.js';
 import { createInteraction } from '../canvas2d/events.js';
-import { findRooms } from '../model/geometry.ts';
-import { activeLevel, useStore } from '../store.js';
+import { worldToScreen } from '../model/units.ts';
+import { activeLevel, einpassen, useStore } from '../store.js';
 
 const CURSORS = {
   select: 'default',
@@ -10,6 +11,9 @@ const CURSORS = {
   door: 'copy',
   window: 'copy',
   place: 'copy',
+  stair: 'copy',
+  dimension: 'crosshair',
+  room: 'copy',
   pan: 'grab',
 };
 
@@ -17,18 +21,7 @@ export default function PlanCanvas() {
   const canvasRef = useRef(null);
   const state = useStore();
   const level = activeLevel(state);
-
-  // Raumerkennung ist der teuerste Schritt pro Frame -- nur neu rechnen,
-  // wenn sich tatsaechlich Waende geaendert haben.
-  const wallSignature = useMemo(
-    () => level.walls.map((w) => `${w.id}:${w.a.x},${w.a.y},${w.b.x},${w.b.y}`).join('|'),
-    [level.walls],
-  );
-  const rooms = useMemo(
-    () => findRooms(level.walls.map((w) => ({ a: w.a, b: w.b }))),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [wallSignature],
-  );
+  const levelIndex = Math.min(state.activeLevel, state.project.levels.length - 1);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -36,6 +29,14 @@ export default function PlanCanvas() {
     const interaction = createInteraction(canvas);
     return () => interaction.destroy();
   }, []);
+
+  // Beim Öffnen eines Projekts den Plan einpassen, nicht bei jeder Änderung.
+  const ladeZaehler = state.ladeZaehler || 0;
+  useEffect(() => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect) einpassen(rect.width, rect.height);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ladeZaehler]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -55,12 +56,14 @@ export default function PlanCanvas() {
       const { dpr, size } = resize();
       drawScene(ctx, {
         level,
+        derived: deriveLevel(state.project, levelIndex),
         view: state.view,
         settings: state.settings,
         selection: state.selection,
         draft: state.draft,
+        dimDraft: state.dimDraft,
+        guides: state.guides,
         snapPoint: state.snapPoint,
-        rooms,
         canvasSize: size,
         dpr,
       });
@@ -76,13 +79,37 @@ export default function PlanCanvas() {
       observer.disconnect();
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [level, rooms, state.view, state.settings, state.selection, state.draft, state.snapPoint]);
+  }, [state.project, level, levelIndex, state.view, state.settings, state.selection, state.draft, state.dimDraft, state.guides, state.snapPoint]);
+
+  // Zahleneingabe beim Zeichnen: schwebt am letzten Punkt des Wandzugs.
+  let eingabe = null;
+  if (state.numInput && state.draft?.points.length) {
+    const last = state.draft.points[state.draft.points.length - 1];
+    const p = worldToScreen(last, state.view);
+    eingabe = (
+      <div className="zahleingabe" style={{ left: p.x + 14, top: p.y - 34 }}>
+        <span>Länge{state.numInput.includes(';') ? ' ; Winkel' : ''}</span>
+        <strong>{state.numInput}</strong>
+        <em>cm · Enter</em>
+      </div>
+    );
+  }
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="plan-canvas"
-      style={{ cursor: CURSORS[state.tool] || 'default' }}
-    />
+    <div className="plan-wrap">
+      <canvas ref={canvasRef} className="plan-canvas" style={{ cursor: CURSORS[state.tool] || 'default' }} />
+      {eingabe}
+      <button
+        type="button"
+        className="einpassen"
+        title="Ganzen Plan zeigen (0)"
+        onClick={() => {
+          const rect = canvasRef.current?.getBoundingClientRect();
+          if (rect) einpassen(rect.width, rect.height);
+        }}
+      >
+        Einpassen
+      </button>
+    </div>
   );
 }

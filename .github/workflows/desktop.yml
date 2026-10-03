@@ -1,0 +1,145 @@
+# Gehört nach: Dschonas04/Planr  ->  .github/workflows/desktop.yml
+#
+# Baut Planr als Mac-Programm: ein Universal-Binär (Apple Silicon + Intel)
+# mit eingebetteter Oberfläche und WebKit-Fenster, verpackt als Planr.app
+# im .dmg. Läuft auf GitHubs macOS-Runnern -- das Fenster braucht cgo gegen
+# Cocoa/WebKit, das geht nur auf einem Mac.
+#
+# Auslöser: ein Tag v* (dann landet das .dmg im Release) oder von Hand.
+name: Mac-Programm
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: planr-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mac:
+    runs-on: macos-14
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Version bestimmen
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="$(node -p "require('./package.json').version")-${GITHUB_SHA::7}"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Version: $VERSION"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Oberfläche prüfen und bauen
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+          rm -rf server/web && cp -R dist server/web
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: Server testen
+        working-directory: server
+        run: go test -count=1 ./...
+
+      - name: Programm bauen (arm64 + x86_64)
+        working-directory: server
+        run: |
+          set -e
+          FLAGS=(-tags desktop -trimpath -ldflags "-s -w -X main.version=${VERSION}")
+          CGO_ENABLED=1 GOARCH=arm64 \
+            CGO_CFLAGS="-mmacosx-version-min=11.0" CGO_CXXFLAGS="-mmacosx-version-min=11.0" CGO_LDFLAGS="-mmacosx-version-min=11.0" \
+            go build "${FLAGS[@]}" -o ../planr-arm64 .
+          CGO_ENABLED=1 GOARCH=amd64 CC="clang -arch x86_64" CXX="clang++ -arch x86_64" \
+            CGO_CFLAGS="-mmacosx-version-min=11.0" CGO_CXXFLAGS="-mmacosx-version-min=11.0" CGO_LDFLAGS="-mmacosx-version-min=11.0" \
+            go build "${FLAGS[@]}" -o ../planr-amd64 .
+          cd ..
+          lipo -create -output planr planr-arm64 planr-amd64
+          lipo -info planr
+
+      - name: Planr.app zusammenstellen
+        run: |
+          set -e
+          APP=build/Planr.app
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp planr "$APP/Contents/MacOS/Planr"
+          sed "s/__VERSION__/${VERSION%%-*}/g" desktop/Info.plist > "$APP/Contents/Info.plist"
+          plutil -lint "$APP/Contents/Info.plist"
+
+          # Icon: aus dem 1024er-PNG alle Größen, dann .icns
+          SET=build/Planr.iconset
+          mkdir -p "$SET"
+          for s in 16 32 128 256 512; do
+            sips -z $s $s desktop/Planr.png --out "$SET/icon_${s}x${s}.png" >/dev/null
+            sips -z $((s*2)) $((s*2)) desktop/Planr.png --out "$SET/icon_${s}x${s}@2x.png" >/dev/null
+          done
+          iconutil -c icns "$SET" -o "$APP/Contents/Resources/Planr.icns"
+
+          # Ohne Apple-Entwicklerkonto: Ad-hoc-Signatur. Apple-Silicon-Macs
+          # starten unsignierten Code gar nicht, ad-hoc signierten schon.
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --verbose "$APP"
+
+      - name: Startet das Programm?
+        run: |
+          set -e
+          build/Planr.app/Contents/MacOS/Planr > start.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:47811/healthz; then echo; echo "läuft"; break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:47811/healthz >/dev/null
+          # Ohne Startschlüssel gibt es keine Projekte.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:47811/api/projects)" = "401"
+          kill $PID || true
+          cat start.log
+
+      - name: DMG bauen
+        run: |
+          set -e
+          STAGE=build/dmg
+          mkdir -p "$STAGE"
+          cp -R build/Planr.app "$STAGE/"
+          ln -s /Applications "$STAGE/Programme"
+          hdiutil create -volname "Planr ${VERSION}" -srcfolder "$STAGE" -ov -format UDZO "Planr-${VERSION}.dmg"
+          shasum -a 256 "Planr-${VERSION}.dmg" | tee "Planr-${VERSION}.dmg.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Planr-${{ env.VERSION }}-mac
+          path: |
+            Planr-*.dmg
+            Planr-*.dmg.sha256
+
+      - name: An das Release hängen
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          files: |
+            Planr-*.dmg
+            Planr-*.dmg.sha256
+          generate_release_notes: true

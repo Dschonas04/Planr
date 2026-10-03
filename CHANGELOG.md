@@ -1,5 +1,34 @@
 # Änderungen
 
+## 2.0.0 – 2026-10-03
+
+Planr plant jetzt ganze Einfamilienhäuser und läuft als Mac-Programm.
+
+### Neu
+- **Geschosse** mit Höhenlage, lichter Höhe und Deckenstärke; Geschossleiste,
+  neues Geschoss mit übernommenen Außenwänden, Unterlage des Geschosses darunter.
+- **Wandaufbauten** mit Schichten, Schraffur, Gehrung und T-Stoß; U-Wert nach
+  DIN EN ISO 6946 und Vergleich mit der GEG-Referenz.
+- **Treppen** (gerade, L, U) nach DIN 18065 mit Prüfung und automatischer
+  Deckenöffnung.
+- **Dach** (Sattel, Walm, Pult, Flach) mit Kniestock und Überstand; Linien der
+  lichten Höhe im Dachgeschoss.
+- **Bemaßung**: automatische Außenmaßketten, freie Maßlinien,
+  Öffnungsbeschriftung mit Brüstungshöhe, Architektenschreibweise.
+- **Präzises Zeichnen**: Zahleneingabe für Länge und Winkel, rechtwinklig mit
+  Umschalt, Fang an Endpunkten, Mitten, Wandachsen und Spurlinien.
+- **Raumstempel** und **Wohnflächenberechnung nach WoFlV** (Tabelle, CSV, PDF).
+- **PDF-Pläne** im Maßstab mit Plankopf, Nordpfeil und Maßstabsleiste.
+- **3D** des ganzen Hauses mit Decken, Treppen und Dach.
+- **Mac-Programm** (`.dmg`): eingebetteter Server im Einzelplatz-Betrieb,
+  WebKit-Fenster, native Sichern-/Öffnen-Dialoge, Programmmenü.
+- Rückfragen in der Oberfläche statt Browser-Dialogen; Exporte über einen
+  gemeinsamen Speicherweg.
+
+### Format
+- Projektdateien tragen `version: 2`. Dateien der Version 1 werden beim Öffnen
+  ergänzt (Höhenlagen übereinander, kein Dach, leere Treppen/Maße/Stempel).
+
 ## 1.0.0 – 2026-09-17
 
 Erste Version für den geschäftlichen Einsatz.

@@ -31,11 +31,31 @@ let state = {
     gridCm: 10,
     angleSnap: true,
     showGrid: true,
-    showDimensions: true,
+    showDimensions: false,
     showRooms: true,
     showFurniture: true,
     wallThicknessCm: 24,
+    /** Aufbau für neue Wände; leer = einschalig in wallThicknessCm. */
+    wallTypeId: 'aw-ziegel-365',
+    /** Darunterliegendes Geschoss grau hinterlegen. */
+    showUnderlay: true,
+    /** Außenmaßketten automatisch. */
+    showExteriorDims: true,
+    /** Fenster- und Türmaße an den Öffnungen. */
+    showOpeningLabels: true,
+    /** Dachaufsicht und Linien der lichten Höhe im Dachgeschoss. */
+    showRoof: true,
+    /** 3D: nur das aktive Geschoss statt des ganzen Hauses. */
+    only3dLevel: false,
   },
+  /** Zahleneingabe beim Zeichnen: "450" oder "450;90" (Länge; Winkel). */
+  numInput: '',
+  /** Hilfslinien der Spurverfolgung: [{ axis: 'x'|'y', value, from }]. */
+  guides: [],
+  /** Bemaßungswerkzeug: { a, b, offset } während des Setzens. */
+  dimDraft: null,
+  flaechenOffen: false,
+  pdfOffen: false,
   view3d: false,
   toast: null,
   // Konto und Server
@@ -157,13 +177,18 @@ export function resetHistory() {
   future = [];
 }
 
+/** Im Desktop-Programm (Mac) statt im Browser? */
+export function istDesktop(s = state) {
+  return Boolean(s.auth?.desktop);
+}
+
 export function activeLevel(s = state) {
   return s.project.levels[Math.min(s.activeLevel, s.project.levels.length - 1)];
 }
 
 export function loadProject(project, { vomServer = false } = {}) {
   resetHistory();
-  state = { ...state, project, activeLevel: 0, selection: null, draft: null };
+  state = { ...state, project, activeLevel: 0, selection: null, draft: null, ladeZaehler: (state.ladeZaehler || 0) + 1 };
   persist({ vomServer });
   emit();
 }
@@ -189,4 +214,71 @@ export function useStore(selector = (s) => s) {
     () => selector(state),
     () => selector(state),
   );
+}
+
+/** Löscht das ausgewählte Objekt im aktiven Geschoss. */
+export function removeSelection() {
+  const sel = state.selection;
+  if (!sel) return;
+  const idx = state.activeLevel;
+  commit((project) => {
+    const lvl = project.levels[idx];
+    if (sel.kind === 'wall') {
+      lvl.walls = lvl.walls.filter((w) => w.id !== sel.id);
+      // Oeffnungen ohne Wand haetten keine Position mehr.
+      lvl.openings = lvl.openings.filter((o) => o.wallId !== sel.id);
+    } else if (sel.kind === 'opening') {
+      lvl.openings = lvl.openings.filter((o) => o.id !== sel.id);
+    } else if (sel.kind === 'furniture') {
+      lvl.furniture = lvl.furniture.filter((f) => f.id !== sel.id);
+    } else if (sel.kind === 'stair') {
+      lvl.stairs = lvl.stairs.filter((s) => s.id !== sel.id);
+    } else if (sel.kind === 'dimension') {
+      lvl.dimensions = lvl.dimensions.filter((d) => d.id !== sel.id);
+    } else if (sel.kind === 'room') {
+      lvl.rooms = lvl.rooms.filter((r) => r.id !== sel.id);
+    } else {
+      return false;
+    }
+  });
+  setState({ selection: null });
+}
+
+/**
+ * Rückfrage in der Oberfläche statt window.confirm -- das eingebettete
+ * WebKit des Mac-Programms zeigt keine Browser-Dialoge an.
+ */
+export function bestaetigen(text, ja = 'OK') {
+  return new Promise((resolve) => {
+    setState({ bestaetigung: { text, ja, resolve } });
+  });
+}
+
+export function bestaetigungBeantworten(antwort) {
+  const b = state.bestaetigung;
+  setState({ bestaetigung: null });
+  b?.resolve(antwort);
+}
+
+/** Ansicht so wählen, dass das ganze Geschoss mit Maßketten sichtbar ist. */
+export function einpassen(breite, hoehe) {
+  const s = state;
+  const level = activeLevel(s);
+  const pts = [];
+  for (const l of s.project.levels) for (const w of l.walls) pts.push(w.a, w.b);
+  for (const w of level.walls) pts.push(w.a, w.b);
+  if (!pts.length || !breite || !hoehe) return;
+  const rand = 260;
+  const minX = Math.min(...pts.map((p) => p.x)) - rand;
+  const maxX = Math.max(...pts.map((p) => p.x)) + rand;
+  const minY = Math.min(...pts.map((p) => p.y)) - rand;
+  const maxY = Math.max(...pts.map((p) => p.y)) + rand;
+  const zoom = Math.min(breite / (maxX - minX), hoehe / (maxY - minY), 3);
+  setState({
+    view: {
+      zoom,
+      panX: (breite - (maxX - minX) * zoom) / 2 - minX * zoom,
+      panY: (hoehe - (maxY - minY) * zoom) / 2 - minY * zoom,
+    },
+  });
 }

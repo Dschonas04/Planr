@@ -66,3 +66,23 @@ export const IconLogo = () => (
     <path d="M10 2.5v15M2 10h8" />
   </svg>
 );
+
+export const IconStair = () => (
+  <svg {...base}>
+    <path d="M2 14h3v-3h3V8h3V5h3V2" />
+  </svg>
+);
+
+export const IconDimension = () => (
+  <svg {...base}>
+    <path d="M2 8h12M2 5v6M14 5v6" />
+    <path d="M3.2 9.2l1.6-2.4M11.2 9.2l1.6-2.4" />
+  </svg>
+);
+
+export const IconRoom = () => (
+  <svg {...base}>
+    <rect x="2" y="2" width="12" height="12" rx="1" />
+    <path d="M5 7h6M5 10h4" />
+  </svg>
+);

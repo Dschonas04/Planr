@@ -33,6 +33,13 @@ export interface Wall {
   b: Point;
   thicknessCm: Cm;
   heightCm: Cm;
+  /** Wandaufbau aus dem Katalog (wallTypes.ts); ohne Angabe ein einschaliges Mauerwerk. */
+  typeId?: string;
+  /**
+   * Schichtfolge umdrehen. Planr legt die erste Schicht (außen) selbst auf die
+   * Gebäudeaußenseite; nur wo das nicht eindeutig ist, hilft der Schalter.
+   */
+  flip?: boolean;
 }
 
 export type OpeningType = 'door' | 'window';
@@ -72,14 +79,105 @@ export interface Label {
   text: string;
 }
 
+export type StairKind = 'gerade' | 'l' | 'u';
+
+/**
+ * Eine Treppe, die vom Geschoss, in dem sie steht, ins nächste führt.
+ * Steigungszahl und Auftritt rechnet stairs.ts aus der Geschosshöhe; hier
+ * stehen nur die Vorgaben.
+ */
+export interface Stair {
+  id: string;
+  kind: StairKind;
+  /** Antrittspunkt: Mitte der Antrittsstufe, an der Vorderkante. */
+  x: Cm;
+  y: Cm;
+  /** Laufrichtung des ersten Laufs in Grad, 0 = nach rechts (+x). */
+  rotationDeg: Deg;
+  /** Laufbreite. */
+  widthCm: Cm;
+  /** Gewünschter Auftritt; die Steigung folgt aus der Höhe. */
+  treadCm: Cm;
+  /** Bei L und U: Drehsinn des zweiten Laufs, 1 = links, -1 = rechts. */
+  turn: 1 | -1;
+  /** Bei L und U: Anzahl der Stufen im ersten Lauf; 0 = automatisch. */
+  splitAt: number;
+}
+
+/** Eine gezeichnete Maßlinie zwischen zwei Punkten. */
+export interface Dimension {
+  id: string;
+  a: Point;
+  b: Point;
+  /** Abstand der Maßlinie von der Strecke a–b, senkrecht, vorzeichenbehaftet. */
+  offsetCm: Cm;
+}
+
+/**
+ * Nutzung eines Raums für die Flächenberechnung nach WoFlV.
+ * wohnen = voll anrechenbar, aussen = Balkon/Terrasse (25 %),
+ * nutz = Keller, Technik, Garage (Nutzfläche, keine Wohnfläche).
+ */
+export type RoomUsage = 'wohnen' | 'aussen' | 'nutz';
+
+/**
+ * Raumstempel. Räume entstehen aus den Wänden und haben deshalb keine feste
+ * Kennung; ein Stempel gibt dem Raum, in dem er liegt, Namen und Nutzung.
+ */
+export interface RoomStamp {
+  id: string;
+  x: Cm;
+  y: Cm;
+  name: string;
+  usage: RoomUsage;
+  floor: string;
+}
+
 export interface Level {
   id: string;
   name: string;
+  /** Lichte Raumhöhe (Oberkante Fertigfußboden bis Unterkante Decke). */
   heightCm: Cm;
+  /** Höhenlage OKFF bezogen auf ±0,00 (in der Regel EG-Fußboden). */
+  elevationCm: Cm;
+  /** Stärke der Decke über diesem Geschoss inkl. Fußbodenaufbau. */
+  slabCm: Cm;
   walls: Wall[];
   openings: Opening[];
   furniture: Furniture[];
   labels: Label[];
+  stairs: Stair[];
+  dimensions: Dimension[];
+  rooms: RoomStamp[];
+}
+
+export type RoofKind = 'keins' | 'sattel' | 'pult' | 'walm' | 'flach';
+
+export interface Roof {
+  kind: RoofKind;
+  /** Geschoss, auf dem das Dach sitzt (meist das Dachgeschoss). */
+  levelId: string;
+  pitchDeg: Deg;
+  /** Dachüberstand an Traufe und Ortgang. */
+  overhangCm: Cm;
+  /** Kniestock: Höhe von OKFF bis Schnittpunkt Wandaußenseite/Dachoberkante. */
+  kneeWallCm: Cm;
+  /** Stärke des Dachaufbaus senkrecht zur Dachfläche. */
+  thicknessCm: Cm;
+  /** First parallel zur x-Achse (sonst zur y-Achse). Beim Pultdach: Hochseite. */
+  ridgeAlongX: boolean;
+  /** Pultdach: Hochseite auf der positiven Seite. */
+  highSidePositive: boolean;
+}
+
+/** Angaben für den Plankopf. */
+export interface ProjectMeta {
+  bauherr: string;
+  adresse: string;
+  planverfasser: string;
+  planNummer: string;
+  /** Nordrichtung in Grad, 0 = Plan oben. */
+  nordDeg: Deg;
 }
 
 export interface Project {
@@ -87,6 +185,8 @@ export interface Project {
   name: string;
   gridCm: Cm;
   levels: Level[];
+  roof: Roof;
+  meta: ProjectMeta;
 }
 
 export interface Room {
