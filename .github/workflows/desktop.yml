@@ -128,7 +128,7 @@ jobs:
           hdiutil create -volname "Planr ${VERSION}" -srcfolder "$STAGE" -ov -format UDZO "Planr-${VERSION}.dmg"
           shasum -a 256 "Planr-${VERSION}.dmg" | tee "Planr-${VERSION}.dmg.sha256"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Planr-${{ env.VERSION }}-mac
           path: |
