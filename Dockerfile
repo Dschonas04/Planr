@@ -1,5 +1,5 @@
 # --- Frontend bauen ---
-FROM node:22-alpine AS client
+FROM node:26-alpine AS client
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
