@@ -17,7 +17,7 @@ ARG VERSION=2.0.0
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /planr .
 
 # --- Auslieferung ---
-FROM alpine:3.21
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates wget && adduser -D -u 10001 planr
 COPY --from=server /planr /usr/local/bin/planr
 COPY --from=client /app/dist /srv/dist
