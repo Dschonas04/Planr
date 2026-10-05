@@ -1,0 +1,31 @@
+name: Fehler melden
+description: Etwas funktioniert nicht wie beschrieben
+labels: [fehler]
+body:
+  - type: textarea
+    id: was
+    attributes:
+      label: Was ist passiert?
+      description: Was hast du gemacht, was hast du erwartet, was kam stattdessen?
+    validations:
+      required: true
+  - type: textarea
+    id: schritte
+    attributes:
+      label: Schritte zum Nachstellen
+      placeholder: |
+        1. …
+        2. …
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: steht unter /api/status oder in der Oberfläche
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: input
+    id: umgebung
+    attributes:
+      label: Browser und Betriebssystem
+      placeholder: "Firefox 140, Windows 11"

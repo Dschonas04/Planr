@@ -1,12 +1,32 @@
 # Planr — Grundrisse und Häuser maßstabsgetreu planen
 
+[![CI](https://github.com/Dschonas04/Planr/actions/workflows/ci.yml/badge.svg)](https://github.com/Dschonas04/Planr/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/tag/Dschonas04/Planr?label=Version)](CHANGELOG.md)
+[![Go 1.25](https://img.shields.io/badge/Go-1.25-00ADD8)](https://go.dev)
+[![React](https://img.shields.io/badge/React-19-61dafb)](https://react.dev)
+[![Lizenz: BUSL-1.1](https://img.shields.io/badge/Lizenz-BUSL--1.1-orange)](LICENSE)
+
 Planr ist eine browserbasierte Anwendung, mit der sich eine Wohnung oder ein
 Haus maßstabsgetreu zeichnen und möblieren lässt. Gerechnet wird durchgängig in
 Zentimetern; die 3D-Vorschau baut denselben Plan als begehbares Modell auf.
 
-Der Editor läuft vollständig im Browser. Dazu kommt ein schlanker Go-Server,
-der Projekte speichert, sie über Links teilbar macht und Grundrisse als SVG
-ausliefert — ohne Anmeldung und ohne Datenbank.
+Der Editor läuft vollständig im Browser. Dazu kommt ein schlanker Go-Server
+mit Konten, der Projekte speichert, sie über Links teilbar macht und
+Grundrisse als SVG, PNG und DXF ausliefert — ohne Datenbank.
+
+## Inhalt
+
+- [Häuser planen (ab 2.0)](#häuser-planen-ab-20)
+- [Mac-Programm](#mac-programm)
+- [Funktionen](#funktionen)
+- [Konten, Rechte und Freigaben](#konten-rechte-und-freigaben)
+- [Betrieb](#betrieb)
+- [Schnellstart](#schnellstart)
+- [Tastenkürzel](#tastenkürzel)
+- [Architektur](#architektur)
+- [Grenzen](#grenzen)
+- [Mitmachen](#mitmachen)
+- [Lizenz](#lizenz)
 
 ## Häuser planen (ab 2.0)
 
@@ -370,22 +390,18 @@ schnell und kommt ohne Boolesche Operationen auf Geometrie aus.
 
 ## Grenzen
 
-- **Eine Ebene.** Das Datenmodell kennt mehrere Geschosse, die Oberfläche
-  bedient bisher nur eines.
-- **Der Editor spricht noch nicht mit dem Server.** Die REST-API steht und ist
-  getestet, die Bedienoberfläche dafür fehlt — Projekte lassen sich derzeit nur
-  per API oder Freigabe-Link nutzen.
-- **Kein Zugriffsschutz.** Wer die Adresse kennt, sieht alle Projekte. Für den
-  Betrieb im Internet gehört eine Authentifizierung davor.
-- **Flächen nach Wandmitte.** Räume werden entlang der Wandmittellinien
-  gemessen, nicht nach lichtem Innenmaß. Für die Wohnfläche nach WoFlV ist das
-  zu großzügig.
-- **Möbel sind Quader.** In 3D erscheinen sie als Körper in korrekten Maßen,
-  nicht als Modelle.
+- **Möbel sind einfache Körper.** In 3D erscheinen sie als Quader oder
+  Zylinder in korrekten Maßen, nicht als Modelle.
 - **PNG-Beschriftung ohne Sonderzeichen.** Die eingebaute Bitmap-Schrift deckt
   nur ASCII ab, deshalb steht dort „m2" statt „m²". SVG und DXF sind davon
   nicht betroffen.
-- **Kein Dach, keine Treppe in 3D.** Die Treppe ist im Grundriss ein Symbol.
+
+## Mitmachen
+
+Fehlerberichte, Ideen und Pull Requests sind willkommen, siehe
+[CONTRIBUTING.md](CONTRIBUTING.md). Sicherheitslücken bitte vertraulich
+melden, siehe [SECURITY.md](SECURITY.md). Was sich in welcher Version
+geändert hat, steht in [CHANGELOG.md](CHANGELOG.md).
 
 ## Lizenz
 

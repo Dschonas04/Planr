@@ -1,5 +1,7 @@
 # Änderungen
 
+## Unveröffentlicht
+
 ## 2.0.0 – 2026-10-03
 
 Planr plant jetzt ganze Einfamilienhäuser und läuft als Mac-Programm.
