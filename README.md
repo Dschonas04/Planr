@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Dschonas04/Planr/actions/workflows/ci.yml/badge.svg)](https://github.com/Dschonas04/Planr/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/github/v/tag/Dschonas04/Planr?label=Version)](CHANGELOG.md)
-[![Go 1.25](https://img.shields.io/badge/Go-1.25-00ADD8)](https://go.dev)
+[![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61dafb)](https://react.dev)
 [![Lizenz: BUSL-1.1](https://img.shields.io/badge/Lizenz-BUSL--1.1-orange)](LICENSE)
 
@@ -315,12 +315,12 @@ Administratoren sehen alle. Ändernde Anfragen brauchen den Kopf
 ## Architektur
 
 ### Tech-Stack
-- **Frontend** — React 19, Vite 6, HTML5 Canvas 2D
+- **Frontend** — React 19, Vite 8, HTML5 Canvas 2D
 - **Modellschicht** — TypeScript mit eigenen Einheitentypen für cm, px, Grad
   und Bogenmaß
 - **3D** — three.js mit OrbitControls, per Code-Splitting nachgeladen
 - **State** — eigener Store über `useSyncExternalStore`
-- **Server** — Go 1.25, Standardbibliothek plus `golang.org/x/image` und
+- **Server** — Go 1.26, Standardbibliothek plus `golang.org/x/image` und
   `golang.org/x/crypto/bcrypt`
   (Rasterung und Bitmap-Schrift für den PNG-Export)
 - **Auslieferung** — eine statisch gelinkte Binärdatei, die auch das Frontend

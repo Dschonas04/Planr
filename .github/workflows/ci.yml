@@ -20,8 +20,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Pull Requests bekommen je eine eigene Gruppe, sonst brechen sie sich und
+# den Ausrollvorgang auf main gegenseitig ab.
 concurrency:
-  group: planr-ausrollen
+  group: planr-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'ausrollen' }}
   cancel-in-progress: true
 
 env:
@@ -45,7 +47,7 @@ jobs:
           done
 
       - name: Quellen holen
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Go prüfen und testen
         run: |
@@ -53,7 +55,7 @@ jobs:
             --user "$(id -u):$(id -g)" \
             -e HOME=/tmp -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod \
             -v "$GITHUB_WORKSPACE":/src -w /src/server \
-            golang:1.25-alpine sh -c '
+            golang:1.27-alpine sh -c '
               set -e
               go vet ./...
               gofmt -l . | tee /tmp/ungeformt
@@ -68,7 +70,7 @@ jobs:
             --user "$(id -u):$(id -g)" \
             -e HOME=/tmp \
             -v "$GITHUB_WORKSPACE":/src -w /src \
-            node:22-alpine sh -c '
+            node:26-alpine sh -c '
               set -e
               npm ci
               npm run typecheck
@@ -84,7 +86,7 @@ jobs:
 
     steps:
       - name: Quellen holen
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Bisherige Fassung sichern
         run: |

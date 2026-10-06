@@ -1,5 +1,5 @@
 # --- Frontend bauen ---
-FROM node:22-alpine AS client
+FROM node:26-alpine AS client
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -7,7 +7,7 @@ COPY . .
 RUN npm run build
 
 # --- Server bauen ---
-FROM golang:1.25-alpine AS server
+FROM golang:1.27-alpine AS server
 WORKDIR /src
 COPY server/go.mod server/go.sum ./
 RUN go mod download
@@ -17,7 +17,7 @@ ARG VERSION=2.0.0
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /planr .
 
 # --- Auslieferung ---
-FROM alpine:3.21
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates wget && adduser -D -u 10001 planr
 COPY --from=server /planr /usr/local/bin/planr
 COPY --from=client /app/dist /srv/dist
