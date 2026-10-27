@@ -13,6 +13,7 @@ services:
       PLANR_REGISTRIERUNG: ${PLANR_REGISTRIERUNG:-geschlossen}
       # Hinter einem Reverse Proxy mit TLS auf "ja" setzen.
       PLANR_HINTER_PROXY: ${PLANR_HINTER_PROXY:-nein}
+      PLANR_SICHERES_COOKIE: ${PLANR_SICHERES_COOKIE:-nein}
       PLANR_METRIKEN: ${PLANR_METRIKEN:-nein}
     volumes:
       # Ohne dieses Volume waeren alle Projekte nach einem Neuaufbau weg.

@@ -33,6 +33,9 @@ env:
   # Der Dienst lauscht nur lokal; Caddy nimmt Port 8090 per HTTPS an (Homelab-PKI).
   BINDUNG: 127.0.0.1:28090
   HAFEN_INTERN: 28090
+  # Caddy setzt X-Forwarded-For selbst (eingehende Werte verwirft er), Cookies nur ueber HTTPS
+  PLANR_HINTER_PROXY: "ja"
+  PLANR_SICHERES_COOKIE: "ja"
 
 # Die Jobs lesen nur den Code; ausgerollt wird über den Runner, nicht über das Token.
 permissions:
