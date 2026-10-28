@@ -162,5 +162,5 @@ jobs:
             echo "### Planr"
             echo ""
             echo "- Commit: \`${GITHUB_SHA::7}\`"
-            echo "- Erreichbar: https://10.0.2.43:${HAFEN}"
+            echo "- Erreichbar: http://10.0.2.43:${HAFEN}"
           } >> "$GITHUB_STEP_SUMMARY"
