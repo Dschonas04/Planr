@@ -5,7 +5,7 @@ services:
     container_name: planr
     restart: unless-stopped
     ports:
-      # Im Homelab setzt der CI-Workflow BINDUNG auf 127.0.0.1:28090; TLS macht dort Caddy auf 8090.
+      # BINDUNG legt fest, wo der Dienst lauscht (Standard: alle Adressen, Port 8090).
       - "${BINDUNG:-8090}:8090"
     environment:
       PLANR_DATA: /data
