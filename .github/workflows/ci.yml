@@ -30,11 +30,11 @@ env:
   ABBILD: planr
   DIENST: planr
   HAFEN: 8090
-  BINDUNG: "8090"
-  HAFEN_INTERN: 8090
-  # Direkt per HTTP im LAN, kein Proxy davor
-  PLANR_HINTER_PROXY: "nein"
-  PLANR_SICHERES_COOKIE: "nein"
+  BINDUNG: 127.0.0.1:28090
+  HAFEN_INTERN: 28090
+  # Der Dienst lauscht nur lokal; Caddy nimmt Port 8090 per HTTPS an (Homelab-PKI) und setzt X-Forwarded-For selbst
+  PLANR_HINTER_PROXY: "ja"
+  PLANR_SICHERES_COOKIE: "ja"
 
 # Die Jobs lesen nur den Code; ausgerollt wird über den Runner, nicht über das Token.
 permissions:
@@ -162,5 +162,5 @@ jobs:
             echo "### Planr"
             echo ""
             echo "- Commit: \`${GITHUB_SHA::7}\`"
-            echo "- Erreichbar: http://10.0.2.43:${HAFEN}"
+            echo "- Erreichbar: https://10.0.2.43:${HAFEN}"
           } >> "$GITHUB_STEP_SUMMARY"
